@@ -40,6 +40,21 @@ export interface EventConfig {
   updatedAt: string;
 }
 
+/** events/{eventId} 配下のサブコレクション名 */
+export const EVENT_SUBCOLLECTIONS = {
+  /** プッシュ購読（端末ごとの購読情報） */
+  subscribers: 'subscribers',
+  /** 電話番号キー本人確認レコード（電話番号そのものを含む） */
+  members: 'members',
+  /** クーポン取得記録（電話番号キーに紐づく） */
+  claims: 'claims',
+  /** クーポン消込記録（電話番号キーに紐づく） */
+  redemptions: 'redemptions',
+} as const;
+
+export type EventSubcollection =
+  (typeof EVENT_SUBCOLLECTIONS)[keyof typeof EVENT_SUBCOLLECTIONS];
+
 export const DEFAULT_SUBSCRIBER_CAP = 50_000;
 export const MAX_COUPONS_PER_EVENT = 100;
 export const MAX_INFO_PDFS = 5;

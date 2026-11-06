@@ -16,6 +16,8 @@ import {
   executeEventReset,
 } from '@/lib/event-reset';
 import { listLiveEvents, listUnfinalizedEvents } from '@/lib/event-store';
+import { listReportsAwaitingEmail } from '@/lib/event-report';
+import { trySendFinalReportEmail } from '@/lib/event-report-send';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,7 +68,19 @@ export async function GET(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, processed, errors });
+    // 最終レポートのメール再送スイープ:
+    // 送信できなかったレポートは保存済みなので、成功するまで tick のたびに送り直す。
+    const emailRetries: Array<{ eventId: string; sent: boolean }> = [];
+    for (const report of await listReportsAwaitingEmail(10)) {
+      try {
+        const sent = await trySendFinalReportEmail(report);
+        emailRetries.push({ eventId: report.eventId, sent });
+      } catch {
+        emailRetries.push({ eventId: report.eventId, sent: false });
+      }
+    }
+
+    return NextResponse.json({ ok: true, processed, errors, emailRetries });
   } catch (error) {
     return NextResponse.json(
       {

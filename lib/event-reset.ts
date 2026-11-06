@@ -8,23 +8,19 @@
 //   （消えたドキュメントは二度と対象にならないため、状態を持たなくても再開可能で冪等）。
 // - 完了の記録（lastResetDate / finalizedAt）は、全対象が空になってからだけ付ける。
 import { db } from './firebase-admin';
-import { EventConfig, EventResetMode, jstDateString } from './event';
+import {
+  EVENT_SUBCOLLECTIONS,
+  EventConfig,
+  EventResetMode,
+  EventSubcollection,
+  jstDateString,
+} from './event';
 import { updateEvent } from './event-store';
+import { buildAndPersistFinalReport, snapshotDailyStats } from './event-report';
+import { trySendFinalReportEmail } from './event-report-send';
 
-/** events/{eventId} 配下のサブコレクション名 */
-export const EVENT_SUBCOLLECTIONS = {
-  /** プッシュ購読（端末ごとの購読情報） */
-  subscribers: 'subscribers',
-  /** 電話番号キー本人確認レコード（電話番号そのものを含む） */
-  members: 'members',
-  /** クーポン取得記録（電話番号キーに紐づく） */
-  claims: 'claims',
-  /** クーポン消込記録（電話番号キーに紐づく） */
-  redemptions: 'redemptions',
-} as const;
-
-export type EventSubcollection =
-  (typeof EVENT_SUBCOLLECTIONS)[keyof typeof EVENT_SUBCOLLECTIONS];
+export { EVENT_SUBCOLLECTIONS };
+export type { EventSubcollection };
 
 const ALL_SUBCOLLECTIONS: EventSubcollection[] = [
   EVENT_SUBCOLLECTIONS.subscribers,
@@ -116,7 +112,12 @@ async function executeClear(
 }
 
 /**
- * 日次リセットを実行する。完了した場合のみ lastResetDate を今日に進める
+ * 日次リセットを実行する。
+ *
+ * 消す前に必ず、その時点の件数を日次スナップショットとして保存する。
+ * スナップショットに失敗したら例外となり、削除は一切実行されない
+ * （呼び出し側が記録し、次の tick で再試行する。消去より保全を優先）。
+ * 完了した場合のみ lastResetDate を今日に進める
  * （未完了なら isResetDue が true のまま残り、次の tick で継続される）。
  */
 export async function executeEventReset(
@@ -124,6 +125,7 @@ export async function executeEventReset(
   now: Date,
   budget: number = DEFAULT_DELETE_BUDGET,
 ): Promise<EventResetResult> {
+  await snapshotDailyStats(event, now);
   const result = await executeClear(event, 'daily', budget);
   if (result.completed) {
     await updateEvent(event.id, { lastResetDate: jstDateString(now) });
@@ -132,14 +134,20 @@ export async function executeEventReset(
 }
 
 /**
- * 終了処理を実行する。電話番号を含む全対象を消し終えた場合のみ
- * finalizedAt と status='ended' を記録する（リセットより優先して呼ばれる前提）。
+ * 終了処理を実行する。順序は厳密に「集計 → 保存 → 送信 → 削除」:
+ * 1. 最終レポートを集計して event_reports に保存する。失敗したら例外となり削除しない。
+ * 2. レポートのメール送信を試みる。失敗してもレポートは保存済みなので、
+ *    tick の再送スイープと管理画面からの再送で何度でも送り直せる（削除はブロックしない）。
+ * 3. 電話番号を含む全対象を削除する。消し終えた場合のみ finalizedAt と status='ended' を記録する。
+ * （リセットより優先して呼ばれる前提）
  */
 export async function executeEventFinalization(
   event: EventConfig,
   now: Date,
   budget: number = DEFAULT_DELETE_BUDGET,
 ): Promise<EventResetResult> {
+  const report = await buildAndPersistFinalReport(event, now);
+  await trySendFinalReportEmail(report);
   const result = await executeClear(event, 'finalize', budget);
   if (result.completed) {
     await updateEvent(event.id, {
