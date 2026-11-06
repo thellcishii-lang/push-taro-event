@@ -4,8 +4,10 @@
 //
 // 役割は「いま処理すべきイベントを拾って、そのイベント単独で処理する」ことだけ:
 // - 終了処理（電話番号消去）が最優先
-// - 次に日次リセット（設定時刻を過ぎていて今日分が未実施のイベント）
-// 予約配信のジョブ処理も将来ここに載せるが、キューは分離する。
+// - 次に予約配信（到期した campaign の実行。リセットより前に送る）
+// - 最後に日次リセット（設定時刻を過ぎていて今日分が未実施のイベント）
+// 配信・リセット・終了処理は互いに独立したステップとして実行し、
+// 1つの失敗が他を止めない。
 //
 // イベントごとに try/catch し、1イベントの失敗が他イベントの処理を止めない。
 import { NextResponse } from 'next/server';
@@ -21,6 +23,7 @@ import {
   sweepExpiredReportBackups,
 } from '@/lib/event-report';
 import { trySendFinalReportEmail } from '@/lib/event-report-send';
+import { processDueCampaigns } from '@/lib/event-push';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +38,7 @@ export async function GET(req: Request) {
     kind: 'daily' | 'finalize';
     completed: boolean;
   }> = [];
+  const campaignsSent: Array<{ eventId: string; sent: number }> = [];
   const errors: Array<{ eventId: string; message: string }> = [];
 
   try {
@@ -54,13 +58,27 @@ export async function GET(req: Request) {
             kind: 'finalize',
             completed: result.completed,
           });
-        } else if (isResetDue(event, now)) {
-          const result = await executeEventReset(event, now);
-          processed.push({
-            eventId: event.id,
-            kind: 'daily',
-            completed: result.completed,
-          });
+        } else {
+          // 予約配信はリセットより先に実行する（リセットで購読が消える前に届ける）
+          if (event.status === 'live') {
+            try {
+              const sent = await processDueCampaigns(event.id, now);
+              if (sent > 0) campaignsSent.push({ eventId: event.id, sent });
+            } catch (error) {
+              errors.push({
+                eventId: event.id,
+                message: `配信処理に失敗: ${error instanceof Error ? error.message : String(error)}`,
+              });
+            }
+          }
+          if (isResetDue(event, now)) {
+            const result = await executeEventReset(event, now);
+            processed.push({
+              eventId: event.id,
+              kind: 'daily',
+              completed: result.completed,
+            });
+          }
         }
       } catch (error) {
         // 1イベントの失敗は記録だけして、他イベントの処理を続ける
@@ -95,6 +113,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       processed,
+      campaignsSent,
       errors,
       emailRetries,
       expiredBackupsDeleted,
