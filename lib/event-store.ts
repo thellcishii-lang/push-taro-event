@@ -1,0 +1,133 @@
+// lib/event-store.ts
+// イベント設定の Firestore 読み書き層（Admin SDK）。
+// データ配置: events/{eventId} にイベント設定を持ち、
+// 購読者・クーポン等は events/{eventId} 配下のサブコレクションに置く
+// （イベント単位で名前空間を分け、障害や削除が他イベントに波及しないようにする）。
+import { FieldValue } from 'firebase-admin/firestore';
+import { db } from './firebase-admin';
+import {
+  CreateEventInput,
+  DEFAULT_RESET_MODE,
+  DEFAULT_RESET_TIME,
+  DEFAULT_SUBSCRIBER_CAP,
+  EventConfig,
+  isValidResetTime,
+} from './event';
+
+const EVENTS_COLLECTION = 'events';
+
+type EventDocData = Omit<EventConfig, 'id' | 'createdAt' | 'updatedAt'> & {
+  createdAt?: FirebaseFirestore.Timestamp;
+  updatedAt?: FirebaseFirestore.Timestamp;
+};
+
+function toEventConfig(id: string, data: FirebaseFirestore.DocumentData): EventConfig {
+  return {
+    id,
+    name: data.name,
+    ownerUid: data.ownerUid,
+    startDate: data.startDate,
+    endDate: data.endDate,
+    resetMode: data.resetMode,
+    resetTime: data.resetTime,
+    subscriberCap: data.subscriberCap,
+    status: data.status,
+    lastResetDate: data.lastResetDate ?? null,
+    finalizedAt: data.finalizedAt ?? null,
+    createdAt: data.createdAt?.toDate?.().toISOString() ?? '',
+    updatedAt: data.updatedAt?.toDate?.().toISOString() ?? '',
+  };
+}
+
+export async function createEvent(input: CreateEventInput): Promise<EventConfig> {
+  if (input.endDate < input.startDate) {
+    throw new Error('終了日は開始日以降を指定してください');
+  }
+  const resetTime = input.resetTime ?? DEFAULT_RESET_TIME;
+  if (!isValidResetTime(resetTime)) {
+    throw new Error('リセット時刻の形式が不正です（HH:MM）');
+  }
+
+  const ref = db.collection(EVENTS_COLLECTION).doc();
+  const data: EventDocData = {
+    name: input.name,
+    ownerUid: input.ownerUid,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    resetMode: input.resetMode ?? DEFAULT_RESET_MODE,
+    resetTime,
+    subscriberCap: input.subscriberCap ?? DEFAULT_SUBSCRIBER_CAP,
+    status: 'draft',
+    lastResetDate: null,
+    finalizedAt: null,
+  };
+  await ref.set({
+    ...data,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  const created = await getEvent(ref.id);
+  if (!created) throw new Error('イベントの作成に失敗しました');
+  return created;
+}
+
+export async function getEvent(eventId: string): Promise<EventConfig | null> {
+  const snap = await db.collection(EVENTS_COLLECTION).doc(eventId).get();
+  if (!snap.exists) return null;
+  return toEventConfig(snap.id, snap.data()!);
+}
+
+export async function listEventsByOwner(ownerUid: string): Promise<EventConfig[]> {
+  const snap = await db
+    .collection(EVENTS_COLLECTION)
+    .where('ownerUid', '==', ownerUid)
+    .get();
+  return snap.docs
+    .map((doc) => toEventConfig(doc.id, doc.data()))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate));
+}
+
+/** スケジューラが「開催中イベント」を拾うための一覧。件数は最大でも数十件想定。 */
+export async function listLiveEvents(): Promise<EventConfig[]> {
+  const snap = await db
+    .collection(EVENTS_COLLECTION)
+    .where('status', '==', 'live')
+    .get();
+  return snap.docs.map((doc) => toEventConfig(doc.id, doc.data()));
+}
+
+export type UpdateEventInput = Partial<
+  Pick<
+    EventConfig,
+    | 'name'
+    | 'startDate'
+    | 'endDate'
+    | 'resetMode'
+    | 'resetTime'
+    | 'subscriberCap'
+    | 'status'
+    | 'lastResetDate'
+    | 'finalizedAt'
+  >
+>;
+
+export async function updateEvent(
+  eventId: string,
+  patch: UpdateEventInput,
+): Promise<void> {
+  if (patch.resetTime !== undefined && !isValidResetTime(patch.resetTime)) {
+    throw new Error('リセット時刻の形式が不正です（HH:MM）');
+  }
+  if (
+    patch.startDate !== undefined &&
+    patch.endDate !== undefined &&
+    patch.endDate < patch.startDate
+  ) {
+    throw new Error('終了日は開始日以降を指定してください');
+  }
+  await db
+    .collection(EVENTS_COLLECTION)
+    .doc(eventId)
+    .update({ ...patch, updatedAt: FieldValue.serverTimestamp() });
+}
