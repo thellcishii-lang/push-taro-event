@@ -1,6 +1,6 @@
 // app/api/admin/events/[eventId]/route.ts
-// 運営側（customClaims.admin）専用: イベントの購読者上限（契約枠）の変更。
-// 購読者上限は料金の軸（〜5万人／〜10万人／〜20万人…）なので、
+// 運営側（customClaims.admin）専用: イベントの契約枠の変更。
+// 購読者上限とクーポン上限は料金の軸（〜5万人／〜10万人、クーポン枠数）なので、
 // 主催者向けAPIからは変更できず、契約時に運営側がここで設定する。
 import { NextResponse } from 'next/server';
 import { verifyAdmin } from '@/lib/admin-auth';
@@ -30,12 +30,28 @@ export async function PATCH(
     return NextResponse.json({ error: 'リクエスト形式が不正です' }, { status: 400 });
   }
 
-  if (typeof body.subscriberCap !== 'number') {
-    return NextResponse.json({ error: 'subscriberCap が必要です' }, { status: 400 });
+  const patch: { subscriberCap?: number; couponCap?: number } = {};
+  for (const field of ['subscriberCap', 'couponCap'] as const) {
+    const value = body[field];
+    if (value !== undefined) {
+      if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+        return NextResponse.json(
+          { error: `${field} は1以上の整数で指定してください` },
+          { status: 400 },
+        );
+      }
+      patch[field] = value;
+    }
+  }
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json(
+      { error: 'subscriberCap または couponCap が必要です' },
+      { status: 400 },
+    );
   }
 
   try {
-    await updateEvent(eventId, { subscriberCap: body.subscriberCap });
+    await updateEvent(eventId, patch);
     const updated = await getEvent(eventId);
     return NextResponse.json({ event: updated });
   } catch (error) {

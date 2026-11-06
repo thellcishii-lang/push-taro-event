@@ -217,6 +217,17 @@ export default function EventAdminPage() {
               <div style={{ fontSize: 13, color: '#475569' }}>
                 {event.startDate} 〜 {event.endDate}／状態: {event.status}／リセット: {event.resetMode === 'full-daily' ? '毎日フルリセット' : '期間中は電話番号を保持'} {event.resetTime}
               </div>
+              <div style={{ marginTop: 6, display: 'flex', gap: 12 }}>
+                <a href={`/event-admin/${event.id}/push`} style={{ fontSize: 13 }}>
+                  ① プッシュ＋消込 →
+                </a>
+                <a href={`/event-admin/${event.id}/schedule`} style={{ fontSize: 13 }}>
+                  ② 予約配信 →
+                </a>
+                <a href={`/event-admin/${event.id}/coupons`} style={{ fontSize: 13 }}>
+                  ③ クーポン管理 →
+                </a>
+              </div>
             </li>
           ))}
         </ul>

@@ -16,3 +16,32 @@ export async function getUidFromRequest(
     return null;
   }
 }
+
+import { NextResponse } from 'next/server';
+import { EventConfig } from './event';
+import { getEvent } from './event-store';
+
+/**
+ * 主催者本人のイベントだけを対象にする API 用ガード。
+ * 認証なし=401、イベントなし=404、他人のイベント=403 を返す。
+ */
+export async function requireEventOwner(
+  request: Request,
+  eventId: string,
+): Promise<
+  | { uid: string; event: EventConfig }
+  | { error: NextResponse }
+> {
+  const uid = await getUidFromRequest(request);
+  if (!uid) {
+    return { error: NextResponse.json({ error: '認証が必要です' }, { status: 401 }) };
+  }
+  const event = await getEvent(eventId);
+  if (!event) {
+    return { error: NextResponse.json({ error: 'イベントが見つかりません' }, { status: 404 }) };
+  }
+  if (event.ownerUid !== uid) {
+    return { error: NextResponse.json({ error: '権限がありません' }, { status: 403 }) };
+  }
+  return { uid, event };
+}
