@@ -49,6 +49,19 @@ export default function TorisetsuIndexClient() {
             </ul>
             <span className="t-plan-btn">取扱説明書を見る →</span>
           </Link>
+
+          <Link href="/torisetsu/event" className="t-plan-card">
+            <div className="t-plan-icon">🎪</div>
+            <div className="t-plan-name">Push-taro EVENT</div>
+            <div className="t-plan-desc">展示会・大型イベント向け</div>
+            <ul className="t-plan-list">
+              <li>データのリセット方式A / Bの違い</li>
+              <li>イベント終了時の消去手順</li>
+              <li>消去前に届く集計レポート</li>
+              <li>消込の権限について</li>
+            </ul>
+            <span className="t-plan-btn">取扱説明書を見る →</span>
+          </Link>
         </div>
       </main>
     </>
