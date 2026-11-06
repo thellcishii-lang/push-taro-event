@@ -140,7 +140,7 @@ export default function EventAdminPage() {
       endDate: form.endDate,
       resetMode: form.resetMode,
       resetTime: form.resetTime,
-      subscriberCap: Number(form.subscriberCap),
+      // 購読者上限は契約枠（料金の軸）なので主催者からは送信しない。運営側のみ変更可。
       backupRetentionDays: Number(form.backupRetentionDays),
       ...(selectedId ? { status: form.status } : {}),
     };
@@ -270,10 +270,15 @@ export default function EventAdminPage() {
           リセット時刻（JST）
           <input style={inputStyle} type="time" value={form.resetTime} onChange={(e) => setForm({ ...form, resetTime: e.target.value })} />
         </label>
-        <label style={labelStyle}>
-          購読者上限
-          <input style={inputStyle} type="number" min={1} value={form.subscriberCap} onChange={(e) => setForm({ ...form, subscriberCap: e.target.value })} />
-        </label>
+        <div style={{ marginBottom: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>購読者上限（契約枠）</span>
+          <div style={{ fontSize: 14, marginTop: 4 }}>
+            {selected ? Number(form.subscriberCap).toLocaleString('ja-JP') : '50,000（既定）'}人
+            <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>
+              ※料金プランに連動するため、変更は運営側で行います
+            </span>
+          </div>
+        </div>
         <label style={labelStyle}>
           レポートのバックアップ保持日数（運営用）
           <input style={inputStyle} type="number" min={1} value={form.backupRetentionDays} onChange={(e) => setForm({ ...form, backupRetentionDays: e.target.value })} />

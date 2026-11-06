@@ -33,7 +33,8 @@ const EDITABLE_FIELDS: Array<keyof UpdateEventInput> = [
   'endDate',
   'resetMode',
   'resetTime',
-  'subscriberCap',
+  // subscriberCap は含めない: 料金（契約枠）の軸のため、変更は運営側のみ
+  // （/api/admin/events/[eventId]）。
   'backupRetentionDays',
   'status',
 ];
