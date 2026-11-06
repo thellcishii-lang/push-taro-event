@@ -1,0 +1,54 @@
+/* app/guide/features/features.css */
+
+/* ナビ・基本レイアウト */
+.g-nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid #e2e8f0; }
+.g-nav-inner { max-width: 1100px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.g-nav-cta { background: #ff4500; color: #fff; padding: 10px 22px; border-radius: 8px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 4px 12px rgba(255,69,0,0.25); }
+
+.g-main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; }
+.g-breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #64748b; margin-bottom: 20px; }
+.g-breadcrumb a { color: #64748b; text-decoration: none; }
+.g-breadcrumb a:hover { color: #ff4500; }
+.g-breadcrumb .sep { color: #cbd5e1; }
+.g-breadcrumb .current { color: #1e293b; font-weight: 700; }
+
+.g-hero { padding: 32px 0 40px; border-bottom: 1px solid #e2e8f0; margin-bottom: 40px; }
+.g-badge { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #ff4500; background: #fff7ed; padding: 5px 14px; border-radius: 20px; margin-bottom: 16px; }
+.g-hero h1 { font-size: clamp(26px, 3.4vw, 38px); font-weight: 900; color: #0f172a; letter-spacing: -1px; line-height: 1.25; margin: 0 0 14px; }
+.g-hero p { font-size: 15.5px; color: #64748b; line-height: 1.9; max-width: 720px; margin: 0; }
+
+/* カテゴリ見出し */
+.g-h2 { font-size: 18px; font-weight: 800; color: #1e293b; margin: 40px 0 16px; letter-spacing: -0.3px; }
+.g-h2:first-of-type { margin-top: 0; }
+
+/* 機能カードグリッド */
+.g-feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.g-feature-card { display: flex; align-items: center; gap: 14px; padding: 18px 20px; background: #fff; border: 2px solid #e2e8f0; border-radius: 14px; text-decoration: none; color: inherit; transition: all 0.2s; }
+.g-feature-card:hover { border-color: #ff4500; transform: translateY(-3px); box-shadow: 0 12px 32px rgba(255,69,0,0.1); }
+.g-feature-icon { font-size: 32px; flex-shrink: 0; }
+.g-feature-info { flex: 1; min-width: 0; }
+.g-feature-info h4 { font-size: 15px; font-weight: 800; color: #0f172a; margin: 0 0 4px; }
+.g-feature-info p { font-size: 12px; color: #64748b; margin: 0; line-height: 1.5; }
+
+/* プランタグ */
+.g-feature-tag { font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 12px; letter-spacing: 0.3px; flex-shrink: 0; }
+.g-feature-tag.is-all { background: #f1f5f9; color: #64748b; }
+.g-feature-tag.is-std { background: #dbeafe; color: #1e40af; }
+.g-feature-tag.is-pro { background: linear-gradient(135deg, #ff4500, #f97316); color: #fff; }
+
+/* 関連ガイド */
+.g-related { margin-top: 56px; padding-top: 32px; border-top: 2px solid #e2e8f0; }
+.g-related > h3 { font-size: 14px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: #64748b; margin: 0 0 20px; }
+.g-related-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.g-related-card { display: flex; align-items: center; gap: 12px; padding: 16px 18px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; text-decoration: none; color: inherit; transition: all 0.2s; }
+.g-related-card:hover { border-color: #ff4500; transform: translateX(4px); }
+.g-related-card .ico { font-size: 24px; flex-shrink: 0; }
+.g-related-card .title { font-size: 14px; font-weight: 800; color: #0f172a; line-height: 1.3; }
+.g-related-card .sub { font-size: 11.5px; color: #64748b; margin-top: 2px; }
+.g-related-card .arrow { color: #ff4500; font-size: 16px; font-weight: 900; margin-left: auto; }
+
+@media (max-width: 640px) {
+  .g-main { padding: 24px 16px 60px; }
+  .g-nav-cta { padding: 8px 14px; font-size: 12px; }
+  .g-feature-grid { grid-template-columns: 1fr; }
+}

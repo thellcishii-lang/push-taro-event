@@ -1,0 +1,96 @@
+/* app/guide/guide.css */
+
+.g-nav { position: sticky; top: 0; z-index: 100; background: rgba(255,255,255,0.95); backdrop-filter: blur(12px); border-bottom: 1px solid #e2e8f0; }
+.g-nav-inner { max-width: 1100px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+
+/* LPと完全一致のロゴ */
+.logo { display: flex; align-items: center; font-size: 22px; font-weight: 900; color: #0f172a; letter-spacing: -0.5px; text-decoration: none; }
+.logo-mark { width: 34px; height: 34px; flex-shrink: 0; margin-right: 8px; }
+.logo span { color: #ff4500; margin-left: 1px; }
+.logo small { font-size: 11px; font-weight: 600; color: #64748b; letter-spacing: 0; margin-left: 8px; }
+
+.g-nav-cta { background: #ff4500; color: #fff; padding: 10px 22px; border-radius: 8px; font-weight: 700; font-size: 14px; text-decoration: none; box-shadow: 0 4px 12px rgba(255,69,0,0.25); }
+.g-main { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; }
+.g-hero { padding: 32px 0 40px; border-bottom: 1px solid #e2e8f0; margin-bottom: 48px; text-align: center; }
+.g-badge { display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #ff4500; background: #fff7ed; padding: 5px 14px; border-radius: 20px; margin-bottom: 16px; }
+.g-hero h1 { font-size: clamp(28px, 3.6vw, 42px); font-weight: 900; color: #0f172a; letter-spacing: -1px; line-height: 1.25; margin: 0 0 14px; }
+.g-hero p { font-size: 15.5px; color: #64748b; line-height: 1.9; max-width: 720px; margin: 0 auto; }
+
+.g-sec { margin-bottom: 56px; }
+.g-sec-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+.g-sec-num { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: linear-gradient(135deg, #ff4500, #f97316); color: #fff; border-radius: 10px; font-size: 16px; font-weight: 900; box-shadow: 0 4px 12px rgba(255,69,0,0.25); flex-shrink: 0; }
+.g-sec-head h2 { font-size: 22px; font-weight: 900; color: #0f172a; margin: 0 0 4px; letter-spacing: -0.5px; }
+.g-sec-head p { font-size: 13px; color: #64748b; margin: 0; }
+
+.g-feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; }
+.g-feature-card { display: flex; align-items: center; gap: 14px; padding: 18px 20px; background: #fff; border: 2px solid #e2e8f0; border-radius: 14px; text-decoration: none; color: inherit; transition: all 0.2s; }
+.g-feature-card:hover { border-color: #ff4500; transform: translateY(-3px); box-shadow: 0 12px 32px rgba(255,69,0,0.1); }
+.g-feature-icon { font-size: 32px; flex-shrink: 0; }
+.g-feature-info { flex: 1; min-width: 0; }
+.g-feature-info h4 { font-size: 15px; font-weight: 800; color: #0f172a; margin: 0 0 4px; }
+.g-feature-info p { font-size: 12px; color: #64748b; margin: 0; line-height: 1.5; }
+.g-feature-tag { font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 12px; letter-spacing: 0.3px; flex-shrink: 0; }
+.g-feature-tag.is-all { background: #f1f5f9; color: #64748b; }
+.g-feature-tag.is-std { background: #dbeafe; color: #1e40af; }
+.g-feature-tag.is-pro { background: linear-gradient(135deg, #ff4500, #f97316); color: #fff; }
+
+.g-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.g-card { display: block; padding: 20px 18px; background: #fff; border: 2px solid #e2e8f0; border-radius: 14px; text-decoration: none; color: inherit; transition: all 0.2s; position: relative; }
+.g-card:hover { border-color: #ff4500; transform: translateY(-3px); box-shadow: 0 12px 32px rgba(255,69,0,0.08); }
+.g-card-icon { font-size: 28px; display: block; margin-bottom: 8px; }
+.g-card h4 { font-size: 15px; font-weight: 800; color: #0f172a; margin: 0 0 6px; }
+.g-card p { font-size: 12.5px; color: #64748b; margin: 0; line-height: 1.6; }
+
+/* NEW バッジ */
+.g-card.is-new { border-color: #ff4500; }
+.g-card-new {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ff4500, #f97316);
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.g-cta { margin-top: 56px; padding: 40px 32px; background: linear-gradient(160deg, #0f172a, #1e293b); color: #fff; border-radius: 20px; text-align: center; }
+.g-cta h3 { font-size: 22px; font-weight: 900; margin: 0 0 12px; color: #fff; }
+.g-cta p { font-size: 14.5px; color: #94a3b8; margin: 0 0 24px; line-height: 1.8; }
+.g-cta-btn { display: inline-flex; align-items: center; gap: 8px; background: linear-gradient(135deg, #ff4500, #f97316); color: #fff; padding: 14px 32px; border-radius: 10px; font-weight: 800; font-size: 15px; text-decoration: none; box-shadow: 0 8px 24px rgba(255,69,0,0.35); }
+
+@media (max-width: 640px) {
+  .g-main { padding: 24px 16px 60px; }
+  .logo { font-size: 18px; }
+  .logo-mark { width: 28px; height: 28px; margin-right: 6px; }
+  .logo small { display: none; }
+  .g-nav-cta { padding: 8px 14px; font-size: 12px; }
+  .g-feature-grid { grid-template-columns: 1fr; }
+}
+
+/* app/guide/guide.css に追加 */
+
+/* 次に読むカードを強調 */
+.g-related-card.is-next {
+  border-color: #ff4500;
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  box-shadow: 0 8px 20px rgba(255,69,0,0.10);
+}
+
+.g-related-card.is-next:hover {
+  border-color: #ff4500;
+  transform: translateX(4px);
+  box-shadow: 0 12px 28px rgba(255,69,0,0.18);
+}
+
+.g-related-card.is-next .title {
+  color: #c2410c;
+  font-size: 15px;
+}
+
+.g-related-card.is-next .arrow {
+  color: #ff4500;
+  font-size: 18px;
+}

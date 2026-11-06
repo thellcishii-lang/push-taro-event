@@ -1,0 +1,183 @@
+/* app/developers/pos-api/pos-api.css */
+
+.dev-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  color: #fff;
+}
+.dev-nav-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dev-nav a {
+  color: #e2e8f0;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+.dev-nav a:hover { color: #38bdf8; }
+
+.dev-main {
+  background: #0f172a;
+  color: #e2e8f0;
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+  line-height: 1.8;
+}
+
+.dev-container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.dev-breadcrumb {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 24px;
+}
+.dev-breadcrumb a {
+  color: #94a3b8;
+  text-decoration: none;
+}
+.dev-breadcrumb a:hover { color: #38bdf8; }
+
+.dev-hero {
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 40px;
+  margin-bottom: 48px;
+}
+.dev-hero h1 {
+  font-size: 32px;
+  font-weight: 900;
+  color: #f8fafc;
+  margin: 0 0 16px;
+  letter-spacing: -0.5px;
+}
+.dev-hero p {
+  font-size: 16px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.dev-section {
+  margin-bottom: 64px;
+}
+.dev-section h2 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #f8fafc;
+  margin: 0 0 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #1e293b;
+}
+.dev-section h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #f8fafc;
+  margin: 32px 0 16px;
+}
+
+.dev-text {
+  font-size: 15px;
+  color: #cbd5e1;
+  margin-bottom: 16px;
+}
+.dev-text strong { color: #f8fafc; }
+
+/* エンドポイント表示 */
+.endpoint {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin: 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: monospace;
+  font-size: 15px;
+  font-weight: bold;
+}
+.method {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+.method.get { background: #0ea5e9; color: #fff; }
+.method.post { background: #22c55e; color: #fff; }
+.method.delete { background: #ef4444; color: #fff; }
+.path { color: #f8fafc; }
+
+/* コードブロック */
+.code-block {
+  background: #000;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+  overflow-x: auto;
+}
+.code-block pre {
+  margin: 0;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #a5b4fc;
+}
+.code-block .comment { color: #64748b; }
+.code-block .string { color: #86efac; }
+.code-block .keyword { color: #f472b6; }
+
+/* テーブル */
+.dev-table-wrap {
+  overflow-x: auto;
+  margin: 24px 0;
+  border-radius: 8px;
+  border: 1px solid #1e293b;
+}
+.dev-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.dev-table th, .dev-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #1e293b;
+}
+.dev-table th {
+  background: #1e293b;
+  color: #f8fafc;
+  font-weight: 800;
+}
+.dev-table td { color: #cbd5e1; }
+.dev-table td code {
+  background: #1e293b;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #f8fafc;
+  font-family: monospace;
+}
+
+/* コールアウト */
+.dev-callout {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 8px;
+  margin: 24px 0;
+  background: #1e293b;
+  border: 1px solid #334155;
+}
+.dev-callout p { margin: 0; font-size: 14px; color: #cbd5e1; }
+.dev-callout strong { color: #f8fafc; display: block; margin-bottom: 4px; }

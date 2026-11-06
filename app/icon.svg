@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <defs>
+    <linearGradient id="pushTaroGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ff6b6b"/>
+      <stop offset="100%" stop-color="#ff4500"/>
+    </linearGradient>
+  </defs>
+  <circle cx="24" cy="24" r="23" fill="url(#pushTaroGrad)"/>
+  <path d="M24 9 L34 24 L28 24 L28 32 L20 32 L20 24 L14 24 Z" fill="#ffffff"/>
+  <path d="M20 32 L24 40 L28 32 Z" fill="#fbbf24"/>
+</svg>

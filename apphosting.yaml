@@ -1,0 +1,63 @@
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  minInstances: 0
+  maxInstances: 10
+
+buildConfig:
+  commands:
+    - npm install --no-package-lock --legacy-peer-deps
+
+# The backend must provide NEXT_PUBLIC_SQUARE_LINK_LIGHT,
+# NEXT_PUBLIC_SQUARE_LINK_STANDARD and NEXT_PUBLIC_SQUARE_LINK_PRO at BUILD
+# and RUNTIME. Keep the existing payment URLs in the backend configuration.
+# Verify in that build environment: npm run check:payment-env
+# Changes to these public variables require a new build and rollout.
+# Firestore indexes are deployed separately from App Hosting:
+# npm run check:firestore-indexes -- --project PROJECT_ID
+# Add only missing indexes with the same command plus --apply, then wait for READY.
+# Do not deploy a partial index list with deletion/force options.
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: AIzaSyAhOsfGYv_jBCdv0rUEkn29ADgFbD4pnZU
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: push-taro-8b503.firebaseapp.com
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: push-taro-8b503
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: push-taro-8b503.firebasestorage.app
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "977949043216"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:977949043216:web:e2f98530645c719c123895"
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_VAPID_KEY
+    value: BP1x9F9DzgCPrgkIxcNbL7J5-S8LS-6xJ8WpH6yvd2vqJ1vpJTdUgyb5JbOMZLGo3s9PRTYcJI3WcyTip0wyvXY
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: INFOMAIL_USER
+    secret: INFOMAIL_USER
+    availability:
+      - RUNTIME
+  - variable: INFOMAIL_PASS
+    secret: INFOMAIL_PASS
+    availability:
+      - RUNTIME
