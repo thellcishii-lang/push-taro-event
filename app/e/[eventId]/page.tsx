@@ -14,6 +14,7 @@ import {
   signInWithPhoneNumber,
 } from 'firebase/auth';
 import { auth, requestFCMToken } from '@/lib/firebase-client';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface PublicEvent {
   name: string;
@@ -31,6 +32,28 @@ type Phase =
   | 'code'
   | 'register'
   | 'done';
+
+interface PublicCoupon {
+  id: string;
+  title: string;
+  description: string;
+  exhibitorName: string;
+  keywords: string[];
+}
+
+interface MemberClaim {
+  claimId: string;
+  couponId: string;
+  title: string;
+  exhibitorName: string;
+  status: 'claimed' | 'redeemed';
+}
+
+interface InfoPdf {
+  id: string;
+  title: string;
+  url: string;
+}
 
 function normalizePhoneNumber(value: string): string {
   const compact = value
@@ -78,6 +101,11 @@ export default function EventVisitorPage() {
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [couponQuery, setCouponQuery] = useState('');
+  const [coupons, setCoupons] = useState<PublicCoupon[]>([]);
+  const [myClaims, setMyClaims] = useState<MemberClaim[]>([]);
+  const [couponMessage, setCouponMessage] = useState('');
+  const [infoPdfs, setInfoPdfs] = useState<InfoPdf[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -93,6 +121,14 @@ export default function EventVisitorPage() {
         const ev = data.event as PublicEvent;
         setEvent(ev);
         setPhase(ev.status === 'live' ? 'phone' : 'unavailable');
+        // 案内PDFは登録前でも見られる（会場案内など）
+        try {
+          const pdfRes = await fetch(`/api/events/${eventId}/info-pdfs/public`);
+          const pdfData = await pdfRes.json().catch(() => ({}));
+          if (!cancelled && pdfRes.ok) setInfoPdfs(pdfData.pdfs ?? []);
+        } catch {
+          // PDFが読めなくても登録フローは止めない
+        }
       } catch {
         if (!cancelled) setPhase('not-found');
       }
@@ -203,6 +239,62 @@ export default function EventVisitorPage() {
     }
   };
 
+  const loadCoupons = async (query: string) => {
+    try {
+      const res = await fetch(
+        `/api/events/${eventId}/coupons/public?q=${encodeURIComponent(query)}`,
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setCoupons(data.coupons ?? []);
+    } catch {
+      // 一覧取得の失敗は登録フロー自体を止めない
+    }
+  };
+
+  const loadMyClaims = async (currentUser: User) => {
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch(`/api/events/${eventId}/my-claims`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setMyClaims(data.claims ?? []);
+    } catch {
+      // 同上
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    void loadCoupons('');
+    void loadMyClaims(user);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, eventId]);
+
+  const handleClaim = async (couponId: string) => {
+    if (!user) return;
+    setBusy(true);
+    setCouponMessage('');
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/events/${eventId}/coupons/${couponId}/claim`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCouponMessage(data.error ?? 'クーポンの取得に失敗しました。');
+        return;
+      }
+      setCouponMessage('クーポンを取得しました。ブースでQRコードを見せてください。');
+      await loadMyClaims(user);
+    } catch {
+      setCouponMessage('クーポンの取得に失敗しました。');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (phase === 'loading') return <main style={containerStyle}>読み込み中…</main>;
   if (phase === 'not-found') {
     return (
@@ -220,6 +312,33 @@ export default function EventVisitorPage() {
       <p style={{ fontSize: 13, color: '#475569' }}>
         開催期間: {event.startDate} 〜 {event.endDate}
       </p>
+
+      {infoPdfs.length > 0 && (
+        <section style={{ marginTop: 20 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800 }}>ご案内</h2>
+          {infoPdfs.map((pdf) => (
+            <a
+              key={pdf.id}
+              href={pdf.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'block',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                padding: 14,
+                marginTop: 8,
+                fontWeight: 700,
+                fontSize: 15,
+                color: '#0f172a',
+                textDecoration: 'none',
+              }}
+            >
+              📄 {pdf.title}
+            </a>
+          ))}
+        </section>
+      )}
 
       {phase === 'unavailable' && (
         <p style={{ fontSize: 15, marginTop: 24 }}>
@@ -292,6 +411,74 @@ export default function EventVisitorPage() {
               ? '電話番号とクーポンの取得・利用記録は会期中保持され、イベント終了時に消去されます。'
               : '電話番号も含め、登録情報は毎日すべて消去されます。'}
           </p>
+        </section>
+      )}
+
+      {user && (phase === 'register' || phase === 'done') && (
+        <section style={{ marginTop: 32, borderTop: '1px solid #e2e8f0', paddingTop: 20 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 800 }}>クーポン</h2>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <input
+              style={{ ...inputStyle, marginTop: 0, flex: 1 }}
+              type="search"
+              value={couponQuery}
+              onChange={(e) => setCouponQuery(e.target.value)}
+              placeholder="会社名・キーワードで検索"
+            />
+            <button onClick={() => void loadCoupons(couponQuery)} style={{ padding: '0 16px', fontWeight: 700 }}>
+              検索
+            </button>
+          </div>
+
+          {coupons.length === 0 && (
+            <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>クーポンがありません。</p>
+          )}
+          {coupons.map((coupon) => {
+            const claim = myClaims.find((c) => c.couponId === coupon.id);
+            return (
+              <article
+                key={coupon.id}
+                style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 10 }}
+              >
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{coupon.title}</div>
+                <div style={{ fontSize: 12, color: '#475569' }}>{coupon.exhibitorName}</div>
+                {coupon.description && <p style={{ fontSize: 13, marginTop: 4 }}>{coupon.description}</p>}
+                <button
+                  onClick={() => void handleClaim(coupon.id)}
+                  disabled={busy || claim !== undefined}
+                  style={{ marginTop: 8, padding: '8px 16px', fontWeight: 700 }}
+                >
+                  {claim ? (claim.status === 'redeemed' ? '消込済み' : '取得済み') : '取得する'}
+                </button>
+              </article>
+            );
+          })}
+
+          {myClaims.length > 0 && (
+            <>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginTop: 24 }}>取得済みクーポン</h3>
+              {myClaims.map((claim) => (
+                <article
+                  key={claim.claimId}
+                  style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 10 }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{claim.title}</div>
+                  <div style={{ fontSize: 12, color: '#475569' }}>{claim.exhibitorName}</div>
+                  {claim.status === 'redeemed' ? (
+                    <p style={{ fontSize: 13, marginTop: 8, color: '#64748b' }}>消込済みです</p>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 13, marginTop: 8 }}>ブースでこのQRコードを見せてください</p>
+                      <div style={{ marginTop: 8 }}>
+                        <QRCodeSVG value={claim.claimId} size={160} />
+                      </div>
+                    </>
+                  )}
+                </article>
+              ))}
+            </>
+          )}
+          {couponMessage && <p style={{ marginTop: 12, fontSize: 14 }}>{couponMessage}</p>}
         </section>
       )}
 
