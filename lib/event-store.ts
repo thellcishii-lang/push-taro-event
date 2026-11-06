@@ -12,6 +12,7 @@ import {
   DEFAULT_RESET_TIME,
   DEFAULT_SUBSCRIBER_CAP,
   EventConfig,
+  MAX_COUPONS_PER_EVENT,
   isValidResetTime,
 } from './event';
 
@@ -32,6 +33,7 @@ function toEventConfig(id: string, data: FirebaseFirestore.DocumentData): EventC
     resetMode: data.resetMode,
     resetTime: data.resetTime,
     subscriberCap: data.subscriberCap,
+    couponCap: data.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays: data.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
     status: data.status,
     lastResetDate: data.lastResetDate ?? null,
@@ -59,6 +61,7 @@ export async function createEvent(input: CreateEventInput): Promise<EventConfig>
     resetMode: input.resetMode ?? DEFAULT_RESET_MODE,
     resetTime,
     subscriberCap: input.subscriberCap ?? DEFAULT_SUBSCRIBER_CAP,
+    couponCap: input.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays:
       input.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
     status: 'draft',
@@ -119,6 +122,7 @@ export type UpdateEventInput = Partial<
     | 'resetMode'
     | 'resetTime'
     | 'subscriberCap'
+    | 'couponCap'
     | 'backupRetentionDays'
     | 'status'
     | 'lastResetDate'

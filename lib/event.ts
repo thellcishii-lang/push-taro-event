@@ -32,6 +32,11 @@ export interface EventConfig {
   /** 購読者上限 */
   subscriberCap: number;
   /**
+   * クーポン上限（イベント全体の件数）。購読者上限と同じく契約枠の軸なので、
+   * 変更は運営側のみ。既定は MAX_COUPONS_PER_EVENT。
+   */
+  couponCap: number;
+  /**
    * 最終レポートの運営用バックアップ保持日数（契約ごとに設定）。
    * バックアップは削除対象の外に置き、期限を過ぎたら自動消去する。
    */
@@ -76,6 +81,7 @@ export interface CreateEventInput {
   resetMode?: EventResetMode;
   resetTime?: string;
   subscriberCap?: number;
+  couponCap?: number;
   backupRetentionDays?: number;
 }
 
