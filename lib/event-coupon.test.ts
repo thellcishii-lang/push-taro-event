@@ -6,6 +6,7 @@ import {
   claimIdFor,
   evaluateRedemption,
   filterCoupons,
+  isCouponCapReached,
   memberIdForPhone,
 } from './event-coupon';
 
@@ -84,6 +85,21 @@ describe('filterCoupons（検索）', () => {
   });
   it('タイトルで検索できる', () => {
     expect(filterCoupons(all, 'ノベルティ').map((c) => c.id)).toEqual(['coupon-b']);
+  });
+});
+
+describe('isCouponCapReached（クーポン上限）', () => {
+  it('上限未満は登録できる', () => {
+    expect(isCouponCapReached(99, 100)).toBe(false);
+    expect(isCouponCapReached(0, 100)).toBe(false);
+  });
+  it('上限に達したら登録できない', () => {
+    expect(isCouponCapReached(100, 100)).toBe(true);
+    expect(isCouponCapReached(101, 100)).toBe(true);
+  });
+  it('上限はイベントごとに変えられる前提で判定する', () => {
+    expect(isCouponCapReached(100, 200)).toBe(false);
+    expect(isCouponCapReached(200, 200)).toBe(true);
   });
 });
 

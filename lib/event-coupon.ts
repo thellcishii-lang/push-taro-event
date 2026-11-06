@@ -169,6 +169,11 @@ export async function findExhibitorByAuthUid(
 
 // ─── クーポン ───
 
+/** クーポン上限に達しているか（上限はイベント設定の契約枠）。 */
+export function isCouponCapReached(couponCount: number, couponCap: number): boolean {
+  return couponCount >= couponCap;
+}
+
 export async function createCoupon(
   eventId: string,
   input: {
@@ -183,9 +188,11 @@ export async function createCoupon(
   const title = input.title.trim();
   if (!title) throw new Error('クーポンのタイトルが必要です');
 
+  const event = await getEvent(eventId);
+  const couponCap = event?.couponCap ?? MAX_COUPONS_PER_EVENT;
   const countSnap = await couponsRef(eventId).count().get();
-  if (countSnap.data().count >= MAX_COUPONS_PER_EVENT) {
-    throw new Error(`クーポンはイベント全体で最大${MAX_COUPONS_PER_EVENT}件までです`);
+  if (isCouponCapReached(countSnap.data().count, couponCap)) {
+    throw new Error(`クーポンはイベント全体で最大${couponCap}件までです`);
   }
 
   const ref = couponsRef(eventId).doc();
@@ -281,6 +288,38 @@ export async function claimCoupon(
     claimedAt: FieldValue.serverTimestamp(),
   });
   return { ok: true, claimId, alreadyClaimed: false };
+}
+
+export interface MemberClaimView {
+  claimId: string;
+  couponId: string;
+  title: string;
+  exhibitorName: string;
+  status: 'claimed' | 'redeemed';
+}
+
+/** 来場者本人の取得済みクーポン一覧（クーポン情報を付けて返す）。 */
+export async function listClaimsByMember(
+  eventId: string,
+  memberId: string,
+): Promise<MemberClaimView[]> {
+  const snap = await eventRef(eventId)
+    .collection(EVENT_SUBCOLLECTIONS.claims)
+    .where('memberId', '==', memberId)
+    .get();
+  const views: MemberClaimView[] = [];
+  for (const doc of snap.docs) {
+    const data = doc.data();
+    const coupon = await getCoupon(eventId, String(data.couponId ?? ''));
+    views.push({
+      claimId: doc.id,
+      couponId: String(data.couponId ?? ''),
+      title: coupon?.title ?? '（削除されたクーポン）',
+      exhibitorName: coupon?.exhibitorName ?? '',
+      status: data.status === 'redeemed' ? 'redeemed' : 'claimed',
+    });
+  }
+  return views;
 }
 
 // ─── 消込 ───

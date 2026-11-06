@@ -2,6 +2,7 @@
 // 主催者向け: 出店者（会社）の一覧と登録。出店者はイベント所有者だけが管理する。
 import { NextResponse } from 'next/server';
 import { requireEventOwner } from '@/lib/event-auth';
+import { authAdmin } from '@/lib/firebase-admin';
 import { createExhibitor, listExhibitors } from '@/lib/event-coupon';
 
 export const dynamic = 'force-dynamic';
@@ -32,7 +33,21 @@ export async function POST(
     return NextResponse.json({ error: 'リクエスト形式が不正です' }, { status: 400 });
   }
   const name = typeof body.name === 'string' ? body.name : '';
-  const authUid = typeof body.authUid === 'string' && body.authUid ? body.authUid : null;
+  let authUid = typeof body.authUid === 'string' && body.authUid ? body.authUid : null;
+  // 出店者ログインのメールアドレスが渡されたら、アカウントの uid に解決する
+  // （主催者は uid ではなくメールで管理するほうが実務的）。
+  const authEmail = typeof body.authEmail === 'string' ? body.authEmail.trim() : '';
+  if (!authUid && authEmail) {
+    try {
+      const userRecord = await authAdmin.getUserByEmail(authEmail);
+      authUid = userRecord.uid;
+    } catch {
+      return NextResponse.json(
+        { error: 'そのメールアドレスのログイン用アカウントが見つかりません。先にアカウントを作成してください' },
+        { status: 400 },
+      );
+    }
+  }
 
   try {
     const exhibitor = await createExhibitor(eventId, { name, authUid });
