@@ -16,7 +16,11 @@ import {
   jstDateString,
 } from './event';
 import { updateEvent } from './event-store';
-import { buildAndPersistFinalReport, snapshotDailyStats } from './event-report';
+import {
+  buildAndPersistFinalReport,
+  ensureReportBackup,
+  snapshotDailyStats,
+} from './event-report';
 import { trySendFinalReportEmail } from './event-report-send';
 
 export { EVENT_SUBCOLLECTIONS };
@@ -134,11 +138,13 @@ export async function executeEventReset(
 }
 
 /**
- * 終了処理を実行する。順序は厳密に「集計 → 保存 → 送信 → 削除」:
+ * 終了処理を実行する。順序は厳密に「集計 → 保存 → バックアップ → 送信 → 削除」:
  * 1. 最終レポートを集計して event_reports に保存する。失敗したら例外となり削除しない。
- * 2. レポートのメール送信を試みる。失敗してもレポートは保存済みなので、
+ * 2. 運営用バックアップを削除対象の外に取る（保持日数はイベント＝契約ごとに設定、既定30日）。
+ *    失敗したら例外となり削除しない。バックアップは期限を過ぎたら tick が自動消去する。
+ * 3. レポートのメール送信を試みる。失敗してもレポートとバックアップは保存済みなので、
  *    tick の再送スイープと管理画面からの再送で何度でも送り直せる（削除はブロックしない）。
- * 3. 電話番号を含む全対象を削除する。消し終えた場合のみ finalizedAt と status='ended' を記録する。
+ * 4. 電話番号を含む全対象を削除する。消し終えた場合のみ finalizedAt と status='ended' を記録する。
  * （リセットより優先して呼ばれる前提）
  */
 export async function executeEventFinalization(
@@ -147,6 +153,7 @@ export async function executeEventFinalization(
   budget: number = DEFAULT_DELETE_BUDGET,
 ): Promise<EventResetResult> {
   const report = await buildAndPersistFinalReport(event, now);
+  await ensureReportBackup(report, event.backupRetentionDays, now);
   await trySendFinalReportEmail(report);
   const result = await executeClear(event, 'finalize', budget);
   if (result.completed) {

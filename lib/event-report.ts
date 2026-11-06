@@ -48,6 +48,7 @@ createdAt: string;
 }
 
 const REPORTS_COLLECTION = 'event_reports';
+const REPORT_BACKUPS_COLLECTION = 'event_report_backups';
 const DAILY_STATS_SUBCOLLECTION = 'dailyStats';
 const CAMPAIGNS_SUBCOLLECTION = 'campaigns';
 
@@ -213,6 +214,54 @@ emailStatus: status,
 emailAttempts: FieldValue.increment(1),
 lastEmailAttemptAt: FieldValue.serverTimestamp(),
 });
+}
+
+/** バックアップの自動消去期限を計算する（作成日時＋保持日数）。純粋関数・テスト対象。 */
+export function backupExpiresAt(createdAtIso: string, retentionDays: number): string {
+  const created = new Date(createdAtIso);
+  return new Date(created.getTime() + retentionDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/**
+ * 最終レポートの運営用バックアップを、削除対象の外（event_report_backups）に取る。
+ * 主催者との契約・イベントデータのライフサイクルとは切り離し、運営側の保険とする
+ * （メール紛失・課金トラブル時に、保持期間内なら運営が再送・確認できる）。
+ * 中身は集計レポートのみで、電話番号は含まない。
+ * 既にあれば何もしない（冪等）。失敗したら例外を投げる（終了処理＝削除を中止させるため）。
+ */
+export async function ensureReportBackup(
+  report: EventFinalReport,
+  retentionDays: number,
+  now: Date,
+): Promise<void> {
+  const ref = db.collection(REPORT_BACKUPS_COLLECTION).doc(report.eventId);
+  const existing = await ref.get();
+  if (existing.exists) return;
+  await ref.set({
+    ...report,
+    backedUpAt: FieldValue.serverTimestamp(),
+    expiresAt: backupExpiresAt(now.toISOString(), retentionDays),
+  });
+}
+
+/**
+ * 保持期限を過ぎた運営用バックアップを消去する（tick から呼ばれる）。
+ * 1回あたりの件数に上限を設け、残りは次回 tick で消す。
+ */
+export async function sweepExpiredReportBackups(
+  now: Date,
+  limit: number = 100,
+): Promise<number> {
+  const snap = await db
+    .collection(REPORT_BACKUPS_COLLECTION)
+    .where('expiresAt', '<=', now.toISOString())
+    .limit(limit)
+    .get();
+  if (snap.empty) return 0;
+  const batch = db.batch();
+  snap.docs.forEach((doc) => batch.delete(doc.ref));
+  await batch.commit();
+  return snap.size;
 }
 
 /** レポートのメール本文（HTML）を組み立てる。純粋関数・テスト対象。 */

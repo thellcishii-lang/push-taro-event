@@ -16,7 +16,10 @@ import {
   executeEventReset,
 } from '@/lib/event-reset';
 import { listLiveEvents, listUnfinalizedEvents } from '@/lib/event-store';
-import { listReportsAwaitingEmail } from '@/lib/event-report';
+import {
+  listReportsAwaitingEmail,
+  sweepExpiredReportBackups,
+} from '@/lib/event-report';
 import { trySendFinalReportEmail } from '@/lib/event-report-send';
 
 export const dynamic = 'force-dynamic';
@@ -80,7 +83,22 @@ export async function GET(req: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true, processed, errors, emailRetries });
+    // 保持期限を過ぎた運営用バックアップの自動消去
+    let expiredBackupsDeleted = 0;
+    try {
+      expiredBackupsDeleted = await sweepExpiredReportBackups(now);
+    } catch {
+      // バックアップ消去の失敗は記録に留め、本処理は止めない（次回 tick で再試行）
+      errors.push({ eventId: '(backups)', message: 'バックアップ自動消去に失敗' });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      processed,
+      errors,
+      emailRetries,
+      expiredBackupsDeleted,
+    });
   } catch (error) {
     return NextResponse.json(
       {

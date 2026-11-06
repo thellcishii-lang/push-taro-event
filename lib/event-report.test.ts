@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { EventFinalReport, formatFinalReportHtml } from './event-report';
+import {
+  EventFinalReport,
+  backupExpiresAt,
+  formatFinalReportHtml,
+} from './event-report';
 
 const report: EventFinalReport = {
   eventId: 'ev1',
@@ -20,6 +24,19 @@ const report: EventFinalReport = {
   emailAttempts: 0,
   createdAt: '2026-11-09T00:00:00.000Z',
 };
+
+describe('backupExpiresAt', () => {
+  it('30日保持なら作成日時の30日後が期限になる（月またぎ）', () => {
+    expect(backupExpiresAt('2026-11-09T00:00:00.000Z', 30)).toBe(
+      '2026-12-09T00:00:00.000Z',
+    );
+  });
+  it('保持日数は契約ごとに変えられる', () => {
+    expect(backupExpiresAt('2026-11-09T00:00:00.000Z', 7)).toBe(
+      '2026-11-16T00:00:00.000Z',
+    );
+  });
+});
 
 describe('formatFinalReportHtml', () => {
   it('イベント名・期間・日別件数・最終件数・配信合計を含む', () => {

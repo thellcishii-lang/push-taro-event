@@ -31,6 +31,11 @@ export interface EventConfig {
   resetTime: string;
   /** 購読者上限 */
   subscriberCap: number;
+  /**
+   * 最終レポートの運営用バックアップ保持日数（契約ごとに設定）。
+   * バックアップは削除対象の外に置き、期限を過ぎたら自動消去する。
+   */
+  backupRetentionDays: number;
   status: EventStatus;
   /** 最後に日次リセットを実行した JST 日付（'YYYY-MM-DD'）。未実施なら null */
   lastResetDate: string | null;
@@ -59,6 +64,7 @@ export const DEFAULT_SUBSCRIBER_CAP = 50_000;
 export const MAX_COUPONS_PER_EVENT = 100;
 export const MAX_INFO_PDFS = 5;
 export const DEFAULT_RESET_TIME = '00:00';
+export const DEFAULT_BACKUP_RETENTION_DAYS = 30;
 export const DEFAULT_RESET_MODE: EventResetMode = 'full-daily';
 
 /** 新規イベントの入力。省略項目は既定値で補完する。 */
@@ -70,6 +76,7 @@ export interface CreateEventInput {
   resetMode?: EventResetMode;
   resetTime?: string;
   subscriberCap?: number;
+  backupRetentionDays?: number;
 }
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
