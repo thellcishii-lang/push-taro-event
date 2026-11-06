@@ -49,6 +49,12 @@ interface MemberClaim {
   status: 'claimed' | 'redeemed';
 }
 
+interface InfoPdf {
+  id: string;
+  title: string;
+  url: string;
+}
+
 function normalizePhoneNumber(value: string): string {
   const compact = value
     .replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0))
@@ -99,6 +105,7 @@ export default function EventVisitorPage() {
   const [coupons, setCoupons] = useState<PublicCoupon[]>([]);
   const [myClaims, setMyClaims] = useState<MemberClaim[]>([]);
   const [couponMessage, setCouponMessage] = useState('');
+  const [infoPdfs, setInfoPdfs] = useState<InfoPdf[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +121,14 @@ export default function EventVisitorPage() {
         const ev = data.event as PublicEvent;
         setEvent(ev);
         setPhase(ev.status === 'live' ? 'phone' : 'unavailable');
+        // 案内PDFは登録前でも見られる（会場案内など）
+        try {
+          const pdfRes = await fetch(`/api/events/${eventId}/info-pdfs/public`);
+          const pdfData = await pdfRes.json().catch(() => ({}));
+          if (!cancelled && pdfRes.ok) setInfoPdfs(pdfData.pdfs ?? []);
+        } catch {
+          // PDFが読めなくても登録フローは止めない
+        }
       } catch {
         if (!cancelled) setPhase('not-found');
       }
@@ -297,6 +312,33 @@ export default function EventVisitorPage() {
       <p style={{ fontSize: 13, color: '#475569' }}>
         開催期間: {event.startDate} 〜 {event.endDate}
       </p>
+
+      {infoPdfs.length > 0 && (
+        <section style={{ marginTop: 20 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800 }}>ご案内</h2>
+          {infoPdfs.map((pdf) => (
+            <a
+              key={pdf.id}
+              href={pdf.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'block',
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                padding: 14,
+                marginTop: 8,
+                fontWeight: 700,
+                fontSize: 15,
+                color: '#0f172a',
+                textDecoration: 'none',
+              }}
+            >
+              📄 {pdf.title}
+            </a>
+          ))}
+        </section>
+      )}
 
       {phase === 'unavailable' && (
         <p style={{ fontSize: 15, marginTop: 24 }}>

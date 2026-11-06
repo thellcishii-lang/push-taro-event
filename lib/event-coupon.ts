@@ -169,6 +169,11 @@ export async function findExhibitorByAuthUid(
 
 // ─── クーポン ───
 
+/** クーポン上限に達しているか（上限はイベント設定の契約枠）。 */
+export function isCouponCapReached(couponCount: number, couponCap: number): boolean {
+  return couponCount >= couponCap;
+}
+
 export async function createCoupon(
   eventId: string,
   input: {
@@ -183,9 +188,11 @@ export async function createCoupon(
   const title = input.title.trim();
   if (!title) throw new Error('クーポンのタイトルが必要です');
 
+  const event = await getEvent(eventId);
+  const couponCap = event?.couponCap ?? MAX_COUPONS_PER_EVENT;
   const countSnap = await couponsRef(eventId).count().get();
-  if (countSnap.data().count >= MAX_COUPONS_PER_EVENT) {
-    throw new Error(`クーポンはイベント全体で最大${MAX_COUPONS_PER_EVENT}件までです`);
+  if (isCouponCapReached(countSnap.data().count, couponCap)) {
+    throw new Error(`クーポンはイベント全体で最大${couponCap}件までです`);
   }
 
   const ref = couponsRef(eventId).doc();
