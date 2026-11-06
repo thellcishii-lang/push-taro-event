@@ -97,6 +97,15 @@ export async function listLiveEvents(): Promise<EventConfig[]> {
   return snap.docs.map((doc) => toEventConfig(doc.id, doc.data()));
 }
 
+/** 終了処理の候補（未 finalized の全イベント）。due 判定は isFinalizationDue で行う。 */
+export async function listUnfinalizedEvents(): Promise<EventConfig[]> {
+  const snap = await db
+    .collection(EVENTS_COLLECTION)
+    .where('finalizedAt', '==', null)
+    .get();
+  return snap.docs.map((doc) => toEventConfig(doc.id, doc.data()));
+}
+
 export type UpdateEventInput = Partial<
   Pick<
     EventConfig,
