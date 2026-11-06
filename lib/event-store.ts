@@ -7,6 +7,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebase-admin';
 import {
   CreateEventInput,
+  DEFAULT_BACKUP_RETENTION_DAYS,
   DEFAULT_RESET_MODE,
   DEFAULT_RESET_TIME,
   DEFAULT_SUBSCRIBER_CAP,
@@ -31,6 +32,7 @@ function toEventConfig(id: string, data: FirebaseFirestore.DocumentData): EventC
     resetMode: data.resetMode,
     resetTime: data.resetTime,
     subscriberCap: data.subscriberCap,
+    backupRetentionDays: data.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
     status: data.status,
     lastResetDate: data.lastResetDate ?? null,
     finalizedAt: data.finalizedAt ?? null,
@@ -57,6 +59,8 @@ export async function createEvent(input: CreateEventInput): Promise<EventConfig>
     resetMode: input.resetMode ?? DEFAULT_RESET_MODE,
     resetTime,
     subscriberCap: input.subscriberCap ?? DEFAULT_SUBSCRIBER_CAP,
+    backupRetentionDays:
+      input.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
     status: 'draft',
     lastResetDate: null,
     finalizedAt: null,
@@ -97,6 +101,15 @@ export async function listLiveEvents(): Promise<EventConfig[]> {
   return snap.docs.map((doc) => toEventConfig(doc.id, doc.data()));
 }
 
+/** 終了処理の候補（未 finalized の全イベント）。due 判定は isFinalizationDue で行う。 */
+export async function listUnfinalizedEvents(): Promise<EventConfig[]> {
+  const snap = await db
+    .collection(EVENTS_COLLECTION)
+    .where('finalizedAt', '==', null)
+    .get();
+  return snap.docs.map((doc) => toEventConfig(doc.id, doc.data()));
+}
+
 export type UpdateEventInput = Partial<
   Pick<
     EventConfig,
@@ -106,6 +119,7 @@ export type UpdateEventInput = Partial<
     | 'resetMode'
     | 'resetTime'
     | 'subscriberCap'
+    | 'backupRetentionDays'
     | 'status'
     | 'lastResetDate'
     | 'finalizedAt'
