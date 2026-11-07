@@ -1,7 +1,6 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
-import Script from 'next/script';
 import './globals.css';
 
 // 静的生成は意図的に無効化する。
@@ -23,13 +22,13 @@ const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://push-taro.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
-  title: '店舗・テナント向け プッシュ通知 × クーポンアプリ｜Push-taro',
+  title: 'Push-taro.EVENT｜展示会向けプッシュ通知 × クーポン',
   description:
-    'LINE公式アカウントの配信上限や従量課金に悩む実店舗のための、店舗向けプッシュ通知アプリ。Push-taroは、プッシュ通知とクーポンで実店舗のリピーターづくりを支援します。QRコード登録やクーポン自動配信に対応し、月額1,980円から。',
+    'Push-taro.EVENTは、展示会・大型イベント向けのプッシュ通知 × クーポン基盤です。来場者は会場QRコードから登録し、出展者クーポンの取得・消込と、主催者からのプッシュ配信を行えます。',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Push-taro',
+    title: 'Push-taro.EVENT',
   },
 };
 
@@ -39,19 +38,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ margin: 0 }}>
         {children}
 
-        {/* Google Analytics 4 */}
-        <Script
-          src="https://www.googletagmanager.com/gtag/js?id=G-QCJH31R4FJ"
-          strategy="afterInteractive"
-        />
-        <Script id="ga4-init" strategy="afterInteractive">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-QCJH31R4FJ');
-          `}
-        </Script>
       </body>
     </html>
   );

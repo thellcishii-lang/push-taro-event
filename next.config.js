@@ -8,22 +8,6 @@ const nextConfig = {
   experimental: {
     // App RouterでのSSGを無効化
   },
-
-  // 🔥 旧URL → 新URL のリダイレクト
-  async redirects() {
-    return [
-      {
-        source: '/program',
-        destination: '/partners',
-        permanent: true, // 301リダイレクト
-      },
-      {
-        source: '/program/:path*',
-        destination: '/partners/:path*',
-        permanent: true, // サブパスも念のため
-      },
-    ];
-  },
 };
 
 module.exports = nextConfig;
