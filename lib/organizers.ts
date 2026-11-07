@@ -59,6 +59,26 @@ export async function getOrganizer(contractId: string): Promise<Organizer | null
   return toOrganizer(snap.id, snap.data()!);
 }
 
+export async function listOrganizers(): Promise<Organizer[]> {
+  const snap = await db
+    .collection(ORGANIZERS_COLLECTION)
+    .orderBy('createdAt', 'desc')
+    .get();
+  return snap.docs.map((doc) => toOrganizer(doc.id, doc.data()));
+}
+
+/** 契約枠と状態の運営側変更。存在しなければ false。 */
+export async function updateOrganizer(
+  contractId: string,
+  patch: { subscriberCap?: number; couponCap?: number; status?: OrganizerStatus },
+): Promise<boolean> {
+  const ref = db.collection(ORGANIZERS_COLLECTION).doc(contractId);
+  const snap = await ref.get();
+  if (!snap.exists) return false;
+  await ref.update({ ...patch, updatedAt: FieldValue.serverTimestamp() });
+  return true;
+}
+
 export interface CreateOrganizerData {
   email: string;
   companyName: string;
