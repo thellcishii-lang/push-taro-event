@@ -7,7 +7,7 @@
 // パスワードを含むため、生の本文で署名を検証してから JSON を読む。
 import { NextResponse } from 'next/server';
 import { verifySignature } from '@/lib/hmac';
-import { findActiveApiKey } from '@/lib/organizers';
+import { findActiveApiKey } from '@/lib/api-keys';
 import { provisionOrganizer } from '@/lib/provisioning';
 
 export const dynamic = 'force-dynamic';
