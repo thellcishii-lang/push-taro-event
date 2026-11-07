@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { getUidFromRequest } from '@/lib/event-auth';
 import { createEvent, listEventsByOwner } from '@/lib/event-store';
 import { EventResetMode } from '@/lib/event';
+import { Locale } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
       endDate,
       resetMode: body.resetMode as EventResetMode | undefined,
       resetTime: body.resetTime as string | undefined,
+      defaultLocale: body.defaultLocale as Locale | undefined,
       // 購読者上限は料金（契約枠）の軸なので主催者からは設定できない。
       // 既定値で作成し、変更は運営側API（/api/admin/events/[eventId]）でのみ行う。
       backupRetentionDays: body.backupRetentionDays as number | undefined,

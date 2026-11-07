@@ -5,6 +5,7 @@
 // （イベント単位で名前空間を分け、障害や削除が他イベントに波及しないようにする）。
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebase-admin';
+import { DEFAULT_LOCALE, isLocale, normalizeLocale } from './i18n';
 import {
   CreateEventInput,
   DEFAULT_BACKUP_RETENTION_DAYS,
@@ -33,6 +34,7 @@ function toEventConfig(id: string, data: FirebaseFirestore.DocumentData): EventC
     resetMode: data.resetMode,
     resetTime: data.resetTime,
     subscriberCap: data.subscriberCap,
+    defaultLocale: normalizeLocale(data.defaultLocale),
     couponCap: data.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays: data.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
     status: data.status,
@@ -51,6 +53,9 @@ export async function createEvent(input: CreateEventInput): Promise<EventConfig>
   if (!isValidResetTime(resetTime)) {
     throw new Error('リセット時刻の形式が不正です（HH:MM）');
   }
+  if (input.defaultLocale !== undefined && !isLocale(input.defaultLocale)) {
+    throw new Error('対応していない言語です（ja / en / zh / ko）');
+  }
 
   const ref = db.collection(EVENTS_COLLECTION).doc();
   const data: EventDocData = {
@@ -61,6 +66,7 @@ export async function createEvent(input: CreateEventInput): Promise<EventConfig>
     resetMode: input.resetMode ?? DEFAULT_RESET_MODE,
     resetTime,
     subscriberCap: input.subscriberCap ?? DEFAULT_SUBSCRIBER_CAP,
+    defaultLocale: input.defaultLocale ?? DEFAULT_LOCALE,
     couponCap: input.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays:
       input.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
@@ -122,6 +128,7 @@ export type UpdateEventInput = Partial<
     | 'resetMode'
     | 'resetTime'
     | 'subscriberCap'
+    | 'defaultLocale'
     | 'couponCap'
     | 'backupRetentionDays'
     | 'status'
@@ -136,6 +143,9 @@ export async function updateEvent(
 ): Promise<void> {
   if (patch.resetTime !== undefined && !isValidResetTime(patch.resetTime)) {
     throw new Error('リセット時刻の形式が不正です（HH:MM）');
+  }
+  if (patch.defaultLocale !== undefined && !isLocale(patch.defaultLocale)) {
+    throw new Error('対応していない言語です（ja / en / zh / ko）');
   }
   if (
     patch.startDate !== undefined &&

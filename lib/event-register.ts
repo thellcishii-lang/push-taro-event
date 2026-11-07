@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db, messaging } from './firebase-admin';
 import { EVENT_SUBCOLLECTIONS, EventConfig, jstDateString } from './event';
+import { normalizeLocale } from './i18n';
 import { getEvent } from './event-store';
 
 export function memberIdForPhone(phoneE164: string): string {
@@ -69,7 +70,7 @@ function eventRef(eventId: string) {
 
 export async function registerEventVisitor(
   eventId: string,
-  input: { phoneE164: string; fcmToken: string; now?: Date },
+  input: { phoneE164: string; fcmToken: string; lang?: string; now?: Date },
 ): Promise<RegisterVisitorResult> {
   const event = await getEvent(eventId);
   if (!event) {
@@ -115,6 +116,8 @@ export async function registerEventVisitor(
   batch.set(subscriberRef, {
     memberId,
     fcmToken: input.fcmToken,
+    // 言語は個人の選択を優先し、無ければイベントのデフォルト言語で登録する
+    lang: normalizeLocale(input.lang, event.defaultLocale),
     registeredDate: today,
     updatedAt: FieldValue.serverTimestamp(),
   });

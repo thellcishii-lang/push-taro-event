@@ -16,6 +16,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebase-admin';
 import { EVENT_SUBCOLLECTIONS, MAX_COUPONS_PER_EVENT } from './event';
 import { getEvent } from './event-store';
+import { normalizeLocale, resolveLocale, type Locale } from './i18n';
 
 // exhibitors / coupons はリセット・終了削除の対象外（個人情報を含まない台帳）。
 // 削除対象は EVENT_SUBCOLLECTIONS の4つ（subscribers/members/claims/redemptions）。
@@ -26,6 +27,8 @@ export interface EventExhibitor {
   id: string;
   name: string;
   authUid: string | null;
+  /** 表示言語（個人の選択）。未設定ならイベントのデフォルト言語 */
+  lang: Locale;
 }
 
 export interface EventCoupon {
@@ -115,15 +118,17 @@ function couponsRef(eventId: string) {
 
 export async function createExhibitor(
   eventId: string,
-  input: { name: string; authUid?: string | null },
+  input: { name: string; authUid?: string | null; lang?: Locale },
 ): Promise<EventExhibitor> {
   const name = input.name.trim();
   if (!name) throw new Error('出店者名が必要です');
+  const event = await getEvent(eventId);
   const ref = exhibitorsRef(eventId).doc();
   const exhibitor: EventExhibitor = {
     id: ref.id,
     name,
     authUid: input.authUid ?? null,
+    lang: resolveLocale(input.lang, event?.defaultLocale),
   };
   await ref.set({ ...exhibitor, createdAt: FieldValue.serverTimestamp() });
   return exhibitor;
@@ -137,6 +142,7 @@ export async function listExhibitors(eventId: string): Promise<EventExhibitor[]>
       id: doc.id,
       name: String(data.name ?? ''),
       authUid: (data.authUid as string | null) ?? null,
+      lang: normalizeLocale(data.lang),
     };
   });
 }
@@ -152,6 +158,7 @@ export async function getExhibitor(
     id: doc.id,
     name: String(data.name ?? ''),
     authUid: (data.authUid as string | null) ?? null,
+    lang: normalizeLocale(data.lang),
   };
 }
 
@@ -164,7 +171,7 @@ export async function findExhibitorByAuthUid(
   if (snap.empty) return null;
   const doc = snap.docs[0];
   const data = doc.data();
-  return { id: doc.id, name: String(data.name ?? ''), authUid };
+  return { id: doc.id, name: String(data.name ?? ''), authUid, lang: normalizeLocale(data.lang) };
 }
 
 // ─── クーポン ───

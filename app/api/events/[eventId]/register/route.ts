@@ -48,8 +48,9 @@ export async function POST(
   if (!fcmToken || fcmToken.includes('/')) {
     return NextResponse.json({ error: '有効な fcmToken が必要です' }, { status: 400 });
   }
+  const lang = typeof body.lang === 'string' ? body.lang : undefined;
 
-  const result = await registerEventVisitor(eventId, { phoneE164, fcmToken });
+  const result = await registerEventVisitor(eventId, { phoneE164, fcmToken, lang });
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
