@@ -1,0 +1,20 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 案内PDF: 登録前の来場者もカードから開くので読み取りは公開。
+    // 書き込みはそのイベントの主催者（events/{eventId} の ownerUid）だけ。
+    // 削除はサーバー（Admin SDK）経由のみ。クライアントからの delete は許可しない。
+    match /events/{eventId}/info-pdfs/{fileName} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && get(/databases/(default)/documents/events/{eventId}).data.ownerUid == request.auth.uid
+        && fileName.matches('.*\\.pdf')
+        && request.resource.contentType == 'application/pdf'
+        && request.resource.size <= 10 * 1024 * 1024;
+    }
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
