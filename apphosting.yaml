@@ -61,3 +61,7 @@ env:
     secret: INFOMAIL_PASS
     availability:
       - RUNTIME
+  - variable: CRON_SECRET
+    secret: CRON_SECRET
+    availability:
+      - RUNTIME
