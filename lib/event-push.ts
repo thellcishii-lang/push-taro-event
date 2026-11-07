@@ -38,6 +38,8 @@ export interface EventCampaign {
   /** 送信時点の購読者数（課金の根拠） */
   sentCount: number | null;
   error: string | null;
+  /** 送信処理を開始した時刻（滞留検知用。未送信なら null） */
+  sendingStartedAt: string | null;
   createdAt: string;
 }
 
@@ -88,6 +90,7 @@ function toCampaign(doc: FirebaseFirestore.DocumentSnapshot): EventCampaign {
     sentAt: d.sentAt?.toDate?.().toISOString() ?? (d.sentAt as string | null) ?? null,
     sentCount: typeof d.sentCount === 'number' ? d.sentCount : null,
     error: (d.error as string | null) ?? null,
+    sendingStartedAt: d.sendingStartedAt?.toDate?.().toISOString() ?? null,
     createdAt: d.createdAt?.toDate?.().toISOString() ?? '',
   };
 }
@@ -178,7 +181,7 @@ export async function executeCampaign(
     const snap = await tx.get(ref);
     if (!snap.exists) return false;
     if (snap.data()?.status !== 'scheduled') return false;
-    tx.update(ref, { status: 'sending' });
+    tx.update(ref, { status: 'sending', sendingStartedAt: FieldValue.serverTimestamp() });
     return true;
   });
   if (!claimed) return { sent: false, reason: 'not-scheduled' };

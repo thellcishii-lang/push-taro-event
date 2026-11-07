@@ -24,14 +24,31 @@ import {
 } from '@/lib/event-report';
 import { trySendFinalReportEmail } from '@/lib/event-report-send';
 import { processDueCampaigns } from '@/lib/event-push';
+import { recordTickRun, type TickRunInput } from '@/lib/tick-runs';
+import { dispatchOperatorAlerts } from '@/lib/monitoring';
 
 export const dynamic = 'force-dynamic';
+
+/** 実行記録とアラート送信。監視系の失敗で tick 本体を止めないため、例外は握りつぶす。 */
+async function recordAndAlert(stats: TickRunInput) {
+  try {
+    await recordTickRun(stats);
+  } catch {
+    // 記録の失敗は無視する（次回 tick で改めて記録される）
+  }
+  try {
+    await dispatchOperatorAlerts(new Date());
+  } catch {
+    // アラートの失敗は無視する（状態が残るので次回 tick で送り直される）
+  }
+}
 
 export async function GET(req: Request) {
   if (!isValidCronRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const startedAtMs = Date.now();
   const now = new Date();
   const processed: Array<{
     eventId: string;
@@ -110,6 +127,14 @@ export async function GET(req: Request) {
       errors.push({ eventId: '(backups)', message: 'バックアップ自動消去に失敗' });
     }
 
+    await recordAndAlert({
+      ok: true,
+      durationMs: Date.now() - startedAtMs,
+      eventsProcessed: processed.length,
+      campaignsSent: campaignsSent.reduce((sum, c) => sum + c.sent, 0),
+      errorsCount: errors.length,
+    });
+
     return NextResponse.json({
       ok: true,
       processed,
@@ -119,6 +144,15 @@ export async function GET(req: Request) {
       expiredBackupsDeleted,
     });
   } catch (error) {
+    await recordAndAlert({
+      ok: false,
+      durationMs: Date.now() - startedAtMs,
+      eventsProcessed: processed.length,
+      campaignsSent: campaignsSent.reduce((sum, c) => sum + c.sent, 0),
+      errorsCount: errors.length,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
     return NextResponse.json(
       {
         ok: false,

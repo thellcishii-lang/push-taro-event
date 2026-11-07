@@ -171,9 +171,14 @@ export default function SystemAdminPage() {
     <main style={{ maxWidth: 880, margin: '0 auto', padding: 24 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ fontSize: 20, fontWeight: 800 }}>Push-taro EVENT 運営コンソール</h1>
-        <button onClick={() => void signOut(auth)} style={{ padding: '6px 12px' }}>
-          ログアウト
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <a href="/system-admin/monitoring" style={{ fontSize: 13 }}>
+            運用監視 →
+          </a>
+          <button onClick={() => void signOut(auth)} style={{ padding: '6px 12px' }}>
+            ログアウト
+          </button>
+        </div>
       </div>
       {message && <p style={{ color: '#b91c1c' }}>{message}</p>}
 
