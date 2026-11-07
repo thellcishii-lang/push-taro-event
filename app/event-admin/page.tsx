@@ -14,6 +14,7 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase-client';
 import { EventConfig, EventResetMode } from '@/lib/event';
+import { LOCALE_LABELS, SUPPORTED_LOCALES, Locale } from '@/lib/i18n';
 
 interface EventForm {
   name: string;
@@ -21,6 +22,7 @@ interface EventForm {
   endDate: string;
   resetMode: EventResetMode;
   resetTime: string;
+  defaultLocale: Locale;
   subscriberCap: string;
   backupRetentionDays: string;
   status: 'draft' | 'live';
@@ -32,6 +34,7 @@ const emptyForm: EventForm = {
   endDate: '',
   resetMode: 'full-daily',
   resetTime: '00:00',
+  defaultLocale: 'ja',
   subscriberCap: '50000',
   backupRetentionDays: '30',
   status: 'draft',
@@ -44,6 +47,7 @@ function toForm(event: EventConfig): EventForm {
     endDate: event.endDate,
     resetMode: event.resetMode,
     resetTime: event.resetTime,
+    defaultLocale: event.defaultLocale,
     subscriberCap: String(event.subscriberCap),
     backupRetentionDays: String(event.backupRetentionDays),
     status: event.status === 'live' ? 'live' : 'draft',
@@ -140,6 +144,7 @@ export default function EventAdminPage() {
       endDate: form.endDate,
       resetMode: form.resetMode,
       resetTime: form.resetTime,
+      defaultLocale: form.defaultLocale,
       // 購読者上限は契約枠（料金の軸）なので主催者からは送信しない。運営側のみ変更可。
       backupRetentionDays: Number(form.backupRetentionDays),
       ...(selectedId ? { status: form.status } : {}),
@@ -280,6 +285,23 @@ export default function EventAdminPage() {
         <label style={labelStyle}>
           リセット時刻（JST）
           <input style={inputStyle} type="time" value={form.resetTime} onChange={(e) => setForm({ ...form, resetTime: e.target.value })} />
+        </label>
+        <label style={labelStyle}>
+          デフォルト言語
+          <select
+            style={inputStyle}
+            value={form.defaultLocale}
+            onChange={(e) => setForm({ ...form, defaultLocale: e.target.value as Locale })}
+          >
+            {SUPPORTED_LOCALES.map((locale) => (
+              <option key={locale} value={locale}>
+                {LOCALE_LABELS[locale]}
+              </option>
+            ))}
+          </select>
+          <span style={{ fontSize: 12, color: '#64748b' }}>
+            来場者・出店者の初期表示言語です。本人は自分の言語に変更できます。
+          </span>
         </label>
         <div style={{ marginBottom: 12 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>購読者上限（契約枠）</span>

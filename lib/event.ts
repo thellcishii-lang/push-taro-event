@@ -7,6 +7,8 @@
 // - リセット等の定期処理は「固定時刻の一括 cron」にせず、
 //   15分間隔のスケジューラがイベント単独で拾って実行する前提の判定関数を用意する。
 
+import type { Locale } from './i18n';
+
 /** 日次リセットの方式。イベントごとに選択する。 */
 export type EventResetMode =
   /** 方式A: 購読も電話番号も毎日消去する（単日イベント向け） */
@@ -31,6 +33,8 @@ export interface EventConfig {
   resetTime: string;
   /** 購読者上限 */
   subscriberCap: number;
+  /** イベントのデフォルト言語（主催者が設定）。個人の言語選択がこれを上書きする */
+  defaultLocale: Locale;
   /**
    * クーポン上限（イベント全体の件数）。購読者上限と同じく契約枠の軸なので、
    * 変更は運営側のみ。既定は MAX_COUPONS_PER_EVENT。
@@ -81,6 +85,7 @@ export interface CreateEventInput {
   resetMode?: EventResetMode;
   resetTime?: string;
   subscriberCap?: number;
+  defaultLocale?: Locale;
   couponCap?: number;
   backupRetentionDays?: number;
 }
