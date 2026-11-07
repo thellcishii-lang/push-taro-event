@@ -1,18 +1,13 @@
-// 契約者（主催者）レコードと連携APIキーの読み書き層（Admin SDK）。
+// 契約者（主催者）レコードの読み書き層（Admin SDK）。
 //
 // データ配置:
 // - organizers/{contractId}: 契約者情報。ドキュメントID = 本家の契約ID（冪等キー）
-// - apiKeys/{keyId}: 本家連携用APIキー。クライアントからは読めない
-//   （firestore.rules の catch-all で運営 admin のみ許可、通常は Admin SDK 経由のみ）
-//
-// HMAC 署名の検証には鍵そのものが要るため、apiKeys には鍵を保持する。
-// 鍵の発行・失効・ローテーションは PR-B で管理画面／APIを用意する。
+// - 連携APIキーは lib/api-keys.ts、連携ログは provisioningLogs（本ファイル末尾）
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebase-admin';
 import { DEFAULT_SUBSCRIBER_CAP, MAX_COUPONS_PER_EVENT } from './event';
 
 const ORGANIZERS_COLLECTION = 'organizers';
-const API_KEYS_COLLECTION = 'apiKeys';
 const PROVISIONING_LOGS_COLLECTION = 'provisioningLogs';
 
 export type OrganizerStatus = 'active' | 'suspended';
@@ -108,31 +103,6 @@ export async function completeOrganizerRecord(
     .collection(ORGANIZERS_COLLECTION)
     .doc(contractId)
     .update({ ...patch, updatedAt: FieldValue.serverTimestamp() });
-}
-
-// ─── 連携APIキー ───
-
-export interface ApiKeyRecord {
-  id: string;
-  secret: string;
-  label: string;
-  revoked: boolean;
-}
-
-/** 署名検証用にキーを引く。存在しない・失効済みなら null。 */
-export async function findActiveApiKey(keyId: string): Promise<ApiKeyRecord | null> {
-  if (!keyId) return null;
-  const snap = await db.collection(API_KEYS_COLLECTION).doc(keyId).get();
-  if (!snap.exists) return null;
-  const data = snap.data()!;
-  if (data.revoked === true) return null;
-  if (typeof data.secret !== 'string' || !data.secret) return null;
-  return {
-    id: snap.id,
-    secret: data.secret,
-    label: String(data.label ?? ''),
-    revoked: false,
-  };
 }
 
 // ─── 連携ログ ───
