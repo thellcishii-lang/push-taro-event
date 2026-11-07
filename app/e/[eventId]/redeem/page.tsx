@@ -16,6 +16,7 @@ import {
 } from 'firebase/auth';
 import { Html5Qrcode } from 'html5-qrcode';
 import { auth } from '@/lib/firebase-client';
+import PasswordInput from '@/components/PasswordInput';
 
 interface Exhibitor {
   id: string;
@@ -203,7 +204,7 @@ export default function ExhibitorRedeemPage() {
         </label>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 12 }}>
           パスワード
-          <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput style={inputStyle} value={password} onChange={setPassword} autoComplete="current-password" />
         </label>
         <button onClick={handleLogin} disabled={busy} style={{ width: '100%', padding: '12px 20px', fontWeight: 700, marginTop: 16 }}>
           ログイン

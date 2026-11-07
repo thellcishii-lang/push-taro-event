@@ -13,6 +13,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase-client';
+import PasswordInput from '@/components/PasswordInput';
 import { EventConfig, EventResetMode } from '@/lib/event';
 import { LOCALE_LABELS, SUPPORTED_LOCALES, Locale } from '@/lib/i18n';
 
@@ -184,7 +185,7 @@ export default function EventAdminPage() {
         </label>
         <label style={labelStyle}>
           パスワード
-          <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <PasswordInput style={inputStyle} value={password} onChange={setPassword} autoComplete="current-password" />
         </label>
         <button onClick={handleLogin} disabled={busy} style={{ padding: '10px 20px', fontWeight: 700 }}>
           ログイン
