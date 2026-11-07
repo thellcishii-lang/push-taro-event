@@ -51,7 +51,7 @@ export default function NotFound() {
           トップページへ戻る
         </Link>
         <Link
-          href="/guide"
+          href="/torisetsu/event"
           style={{
             display: 'inline-block',
             padding: '14px 28px',
@@ -64,7 +64,7 @@ export default function NotFound() {
             border: '2px solid #e2e8f0',
           }}
         >
-          活用ガイドを見る
+          EVENTの使い方を見る
         </Link>
       </div>
     </main>

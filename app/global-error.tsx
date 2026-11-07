@@ -1,7 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
-
 export default function GlobalError({
   error,
   reset,
@@ -9,20 +7,6 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    // ブラウザのエラーをサーバーに送信（任意）
-    fetch('/api/report-error', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: error.message,
-        stack: error.stack,
-        digest: error.digest,
-        url: window.location.href,
-      }),
-    }).catch(() => {});
-  }, [error]);
-
   return (
     <html>
       <body>
