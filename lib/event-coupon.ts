@@ -122,6 +122,18 @@ function couponsRef(eventId: string) {
 
 // ─── 出店者 ───
 
+/** 出店者の表示言語（個人の選択）を保存する。 */
+export async function updateExhibitorLanguage(
+  eventId: string,
+  exhibitorId: string,
+  lang: Locale,
+): Promise<void> {
+  await eventRef(eventId)
+    .collection(EVENT_EXHIBITORS_COLLECTION)
+    .doc(exhibitorId)
+    .update({ lang });
+}
+
 export async function createExhibitor(
   eventId: string,
   input: { name: string; authUid?: string | null; lang?: Locale },
