@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server';
 import { authAdmin } from '@/lib/firebase-admin';
 import { listClaimsByMember, memberIdForPhone } from '@/lib/event-coupon';
+import { isLocale } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,11 @@ export async function GET(
     return NextResponse.json({ error: '電話番号認証の有効期限が切れています' }, { status: 401 });
   }
 
-  const claims = await listClaimsByMember(eventId, memberId);
+  const langParam = new URL(request.url).searchParams.get('lang');
+  const claims = await listClaimsByMember(
+    eventId,
+    memberId,
+    isLocale(langParam) ? langParam : undefined,
+  );
   return NextResponse.json({ claims });
 }

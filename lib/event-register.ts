@@ -12,7 +12,7 @@ import { createHash } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db, messaging } from './firebase-admin';
 import { EVENT_SUBCOLLECTIONS, EventConfig, jstDateString, localeTopic } from './event';
-import { normalizeLocale } from './i18n';
+import { isLocale, normalizeLocale, type Locale } from './i18n';
 import { getEvent } from './event-store';
 
 export function memberIdForPhone(phoneE164: string): string {
@@ -142,4 +142,46 @@ export async function registerEventVisitor(
   }
 
   return { ok: true, memberId };
+}
+
+export type UpdateLanguageResult =
+  | { ok: true }
+  | { ok: false; status: number; error: string };
+
+/**
+ * 登録済み購読者の言語を変更する（来場者画面の言語切替から呼ぶ）。
+ * 購読者レコードの lang と、言語別 FCM トピックの付け替えを一緒に行う。
+ */
+export async function updateSubscriberLanguage(
+  eventId: string,
+  memberId: string,
+  lang: Locale,
+): Promise<UpdateLanguageResult> {
+  const event = await getEvent(eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: 'イベントが見つかりません' };
+  }
+  const ref = eventRef(eventId)
+    .collection(EVENT_SUBCOLLECTIONS.subscribers)
+    .doc(memberId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    return { ok: false, status: 404, error: '登録が見つかりません' };
+  }
+  const data = snap.data() ?? {};
+  const previous = normalizeLocale(data.lang, event.defaultLocale);
+  if (previous === lang) return { ok: true };
+
+  await ref.update({ lang, updatedAt: FieldValue.serverTimestamp() });
+
+  const token = typeof data.fcmToken === 'string' ? data.fcmToken : '';
+  if (token) {
+    try {
+      await messaging.unsubscribeFromTopic([token], localeTopic(eventId, previous));
+      await messaging.subscribeToTopic([token], localeTopic(eventId, lang));
+    } catch (error) {
+      console.warn('[EVENT] 言語変更時のトピック付け替えをスキップ:', error);
+    }
+  }
+  return { ok: true };
 }

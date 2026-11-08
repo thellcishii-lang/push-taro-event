@@ -16,8 +16,9 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebase-admin';
 import { EVENT_SUBCOLLECTIONS, MAX_COUPONS_PER_EVENT } from './event';
 import { getEvent } from './event-store';
-import { normalizeLocale, parseLocalizedTexts, resolveLocale, type Locale } from './i18n';
+import { normalizeLocale, parseLocalizedTexts, pickLocalizedText, resolveLocale, type Locale } from './i18n';
 import { translateText } from './translate';
+import { uiText } from './ui-text';
 
 // exhibitors / coupons はリセット・終了削除の対象外（個人情報を含まない台帳）。
 // 削除対象は EVENT_SUBCOLLECTIONS の4つ（subscribers/members/claims/redemptions）。
@@ -322,15 +323,18 @@ export interface MemberClaimView {
   status: 'claimed' | 'redeemed';
 }
 
-/** 来場者本人の取得済みクーポン一覧（クーポン情報を付けて返す）。 */
+/** 来場者本人の取得済みクーポン一覧（クーポン情報を付けて返す）。
+ * locale があればタイトルをその言語で返す（作成時の自動翻訳を使用）。 */
 export async function listClaimsByMember(
   eventId: string,
   memberId: string,
+  locale?: Locale,
 ): Promise<MemberClaimView[]> {
   const snap = await eventRef(eventId)
     .collection(EVENT_SUBCOLLECTIONS.claims)
     .where('memberId', '==', memberId)
     .get();
+  const event = locale ? await getEvent(eventId) : null;
   const views: MemberClaimView[] = [];
   for (const doc of snap.docs) {
     const data = doc.data();
@@ -338,7 +342,13 @@ export async function listClaimsByMember(
     views.push({
       claimId: doc.id,
       couponId: String(data.couponId ?? ''),
-      title: coupon?.title ?? '（削除されたクーポン）',
+      title: coupon
+        ? (locale
+            ? pickLocalizedText(coupon.titleI18n, locale, event?.defaultLocale)
+            : '') || coupon.title
+        : locale
+          ? uiText(locale, 'deletedCoupon')
+          : '（削除されたクーポン）',
       exhibitorName: coupon?.exhibitorName ?? '',
       status: data.status === 'redeemed' ? 'redeemed' : 'claimed',
     });
