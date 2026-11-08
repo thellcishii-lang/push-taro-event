@@ -253,6 +253,42 @@ export const UI_TEXT = {
     zh: '请在展位出示此二维码',
     ko: '부스에서 이 QR 코드를 보여 주세요',
   },
+  showQr: {
+    ja: 'QRコードを表示',
+    en: 'Show QR code',
+    zh: '显示二维码',
+    ko: 'QR 코드 표시',
+  },
+  hideQr: {
+    ja: 'QRコードを閉じる',
+    en: 'Hide QR code',
+    zh: '关闭二维码',
+    ko: 'QR 코드 닫기',
+  },
+  usedStamp: {
+    ja: '使用済み',
+    en: 'USED',
+    zh: '已使用',
+    ko: '사용 완료',
+  },
+  catalogTitle: {
+    ja: 'クーポンカタログ',
+    en: 'Coupon catalog',
+    zh: '优惠券目录',
+    ko: '쿠폰 카탈로그',
+  },
+  couponCount: {
+    ja: 'クーポン {count}件',
+    en: '{count} coupons',
+    zh: '{count} 张优惠券',
+    ko: '쿠폰 {count}장',
+  },
+  itemsCount: {
+    ja: '{count}件',
+    en: '{count} items',
+    zh: '{count} 件',
+    ko: '{count}건',
+  },
   deletedCoupon: {
     ja: '（削除されたクーポン）',
     en: '(Deleted coupon)',
