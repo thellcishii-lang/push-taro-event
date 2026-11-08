@@ -1,7 +1,7 @@
 // app/api/events/[eventId]/route.ts
 // 主催者向けイベント管理 API: 取得と更新（自分のイベントだけ）。
 import { NextResponse } from 'next/server';
-import { getUidFromRequest } from '@/lib/event-auth';
+import { getUidFromRequest, passwordChangeBlock } from '@/lib/event-auth';
 import { getEvent, updateEvent, UpdateEventInput } from '@/lib/event-store';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,7 @@ async function loadOwnedEvent(request: Request, eventId: string) {
   if (event.ownerUid !== uid) {
     return { error: NextResponse.json({ error: '権限がありません' }, { status: 403 }) };
   }
-  return { event };
+  return { event, uid };
 }
 
 export async function GET(
@@ -48,6 +48,10 @@ export async function PATCH(
   const result = await loadOwnedEvent(request, eventId);
   if ('error' in result) return result.error;
   const event = result.event;
+
+  // 初回パスワード変更が未完了の間は更新できない。
+  const block = await passwordChangeBlock(result.uid);
+  if (block) return block;
 
   if (event.finalizedAt) {
     return NextResponse.json(

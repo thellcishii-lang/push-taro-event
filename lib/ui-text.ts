@@ -1269,6 +1269,60 @@ export const ADMIN_TEXT = {
     zh: 'PDF登记失败',
     ko: 'PDF 등록에 실패했습니다',
   },
+  passwordChangeTitle: {
+    ja: 'パスワードの変更が必要です',
+    en: 'Password change required',
+    zh: '需要更改密码',
+    ko: '비밀번호 변경이 필요합니다',
+  },
+  passwordChangeBody: {
+    ja: '初回ログインのため、新しいパスワードを設定してください。変更が完了するまで、管理画面の機能は利用できません。',
+    en: 'This is your first login. Please set a new password. The admin features cannot be used until the password is changed.',
+    zh: '这是首次登录，请设置新密码。在更改完成之前，无法使用管理功能。',
+    ko: '첫 로그인이므로 새 비밀번호를 설정해 주세요. 변경이 완료될 때까지 관리 기능을 사용할 수 없습니다.',
+  },
+  newPasswordLabel: {
+    ja: '新しいパスワード',
+    en: 'New password',
+    zh: '新密码',
+    ko: '새 비밀번호',
+  },
+  newPasswordConfirmLabel: {
+    ja: '新しいパスワード（確認）',
+    en: 'New password (confirm)',
+    zh: '新密码（确认）',
+    ko: '새 비밀번호(확인)',
+  },
+  passwordChangeButton: {
+    ja: 'パスワードを変更する',
+    en: 'Change password',
+    zh: '更改密码',
+    ko: '비밀번호 변경',
+  },
+  passwordMismatch: {
+    ja: 'パスワードが一致しません',
+    en: 'Passwords do not match',
+    zh: '两次输入的密码不一致',
+    ko: '비밀번호가 일치하지 않습니다',
+  },
+  passwordTooShort: {
+    ja: 'パスワードは6文字以上で入力してください',
+    en: 'Password must be at least 6 characters',
+    zh: '密码至少需要6个字符',
+    ko: '비밀번호는 6자 이상 입력해 주세요',
+  },
+  passwordChangeFailed: {
+    ja: 'パスワードの変更に失敗しました',
+    en: 'Failed to change password',
+    zh: '密码更改失败',
+    ko: '비밀번호 변경에 실패했습니다',
+  },
+  passwordChangeRelogin: {
+    ja: '安全のため、一度ログアウトして再ログインしてから、もう一度お試しください',
+    en: 'For security, please log out, log in again, and try once more.',
+    zh: '出于安全考虑，请先退出，重新登录后再试。',
+    ko: '보안을 위해 로그아웃한 뒤 다시 로그인하여 시도해 주세요.',
+  },
 } as const satisfies Record<string, Record<Locale, string>>;
 
 export type AdminTextKey = keyof typeof ADMIN_TEXT;

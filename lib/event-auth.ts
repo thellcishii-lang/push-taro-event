@@ -20,10 +20,30 @@ export async function getUidFromRequest(
 import { NextResponse } from 'next/server';
 import { EventConfig } from './event';
 import { getEvent } from './event-store';
+import { findOrganizerByOwnerUid, shouldBlockForPasswordChange } from './organizers';
+
+/**
+ * 初回パスワード変更ゲート。
+ * 契約者レコードがあり mustChangePassword が立っている間は、
+ * 変更系 API を 403 で止める。契約者レコードが無いユーザー
+ * （運営アカウント、手動作成のアカウント）は対象外。
+ * ブロックすべき場合は NextResponse を、そうでなければ null を返す。
+ */
+export async function passwordChangeBlock(
+  uid: string,
+): Promise<NextResponse | null> {
+  const organizer = await findOrganizerByOwnerUid(uid);
+  if (!shouldBlockForPasswordChange(organizer)) return null;
+  return NextResponse.json(
+    { error: 'パスワード変更が必要です' },
+    { status: 403 },
+  );
+}
 
 /**
  * 主催者本人のイベントだけを対象にする API 用ガード。
  * 認証なし=401、イベントなし=404、他人のイベント=403 を返す。
+ * 本人確認のあと、初回パスワード変更が未完了なら 403 で止める。
  */
 export async function requireEventOwner(
   request: Request,
@@ -43,5 +63,7 @@ export async function requireEventOwner(
   if (event.ownerUid !== uid) {
     return { error: NextResponse.json({ error: '権限がありません' }, { status: 403 }) };
   }
+  const block = await passwordChangeBlock(uid);
+  if (block) return { error: block };
   return { uid, event };
 }
