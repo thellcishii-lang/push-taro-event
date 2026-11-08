@@ -5,14 +5,17 @@
 // - X-Event-Timestamp: Unix秒
 // - X-Event-Signature: HMAC-SHA256(secret, `${timestamp}.${rawBody}`) の hex
 // パスワードを含むため、生の本文で署名を検証してから JSON を読む。
+//
+// 意味づけは create-or-update（lib/provisioning.ts）:
+// - 未契約なら新規作成（email / password / companyName / startDate が必須）
+// - 契約済みなら更新（プラン変更に伴う枠・会社情報の反映のみ。
+//   パスワードは送られても無視し、認証情報は変更しない）
 import { NextResponse } from 'next/server';
 import { verifySignature } from '@/lib/hmac';
 import { findActiveApiKey } from '@/lib/api-keys';
 import { provisionOrganizer } from '@/lib/provisioning';
 
 export const dynamic = 'force-dynamic';
-
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function badRequest(error: string) {
   return NextResponse.json({ error }, { status: 400 });
@@ -46,32 +49,25 @@ export async function POST(request: Request) {
   }
 
   const contractId = typeof body.contractId === 'string' ? body.contractId.trim() : '';
-  const email = typeof body.email === 'string' ? body.email.trim() : '';
-  const password = typeof body.password === 'string' ? body.password : '';
-  const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : '';
-  const startDate = typeof body.startDate === 'string' ? body.startDate : '';
-
   if (!contractId) return badRequest('contractId が必要です');
-  if (!email || !email.includes('@')) return badRequest('有効な email が必要です');
-  if (password.length < 6) return badRequest('password は6文字以上が必要です');
-  if (!companyName) return badRequest('companyName が必要です');
-  if (!DATE_PATTERN.test(startDate)) return badRequest('startDate は YYYY-MM-DD 形式で指定してください');
 
+  // 必須チェックは作成/更新のモードで異なるため lib/provisioning.ts 側で行う。
+  // ここでは型の正規化だけをして渡す。
   const result = await provisionOrganizer({
     contractId,
-    email,
-    password,
-    companyName,
+    email: typeof body.email === 'string' ? body.email.trim() : '',
+    password: typeof body.password === 'string' ? body.password : undefined,
+    companyName: typeof body.companyName === 'string' ? body.companyName.trim() : '',
     address: typeof body.address === 'string' ? body.address : undefined,
     phone: typeof body.phone === 'string' ? body.phone : undefined,
-    startDate,
+    startDate: typeof body.startDate === 'string' ? body.startDate : '',
     subscriberCap: typeof body.subscriberCap === 'number' ? body.subscriberCap : undefined,
     couponCap: typeof body.couponCap === 'number' ? body.couponCap : undefined,
     agencyCode: typeof body.agencyCode === 'string' ? body.agencyCode : null,
   });
 
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: 500 });
+    return NextResponse.json({ error: result.error }, { status: result.status ?? 500 });
   }
   return NextResponse.json(
     { ok: true, status: result.status, ownerUid: result.ownerUid },

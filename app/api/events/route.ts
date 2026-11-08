@@ -1,7 +1,7 @@
 // app/api/events/route.ts
 // 主催者向けイベント管理 API: 一覧取得と新規作成（自分のイベントだけ）。
 import { NextResponse } from 'next/server';
-import { getUidFromRequest } from '@/lib/event-auth';
+import { getUidFromRequest, passwordChangeBlock } from '@/lib/event-auth';
 import { createEvent, listEventsByOwner } from '@/lib/event-store';
 import { EventResetMode, canCreateAnotherEvent } from '@/lib/event';
 import { Locale } from '@/lib/i18n';
@@ -24,6 +24,10 @@ export async function POST(request: Request) {
   if (!uid) {
     return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
   }
+
+  // 初回パスワード変更が未完了の間は作成できない。
+  const block = await passwordChangeBlock(uid);
+  if (block) return block;
 
   // 同時に仕込めるイベントは3つまで（下書き＋開催中。終了したものは数えない）。
   const existingEvents = await listEventsByOwner(uid);

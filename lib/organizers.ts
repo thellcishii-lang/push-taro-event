@@ -22,6 +22,12 @@ export interface Organizer {
   phone: string;
   /** 紐づく Firebase Auth ユーザーの uid。未作成なら null */
   ownerUid: string | null;
+  /**
+   * 初回ログイン時のパスワード変更が必須かどうか。
+   * プロビジョニングでの新規作成時のみ true になる。
+   * 旧レコード（フィールド自体が無い）は false 扱い。
+   */
+  mustChangePassword: boolean;
   status: OrganizerStatus;
   /** 使用開始日（決済完了日, 'YYYY-MM-DD'） */
   startDate: string;
@@ -42,6 +48,7 @@ function toOrganizer(id: string, data: FirebaseFirestore.DocumentData): Organize
     address: String(data.address ?? ''),
     phone: String(data.phone ?? ''),
     ownerUid: (data.ownerUid as string | null) ?? null,
+    mustChangePassword: data.mustChangePassword === true,
     status: data.status === 'suspended' ? 'suspended' : 'active',
     startDate: String(data.startDate ?? ''),
     subscriberCap:
@@ -57,6 +64,29 @@ export async function getOrganizer(contractId: string): Promise<Organizer | null
   const snap = await db.collection(ORGANIZERS_COLLECTION).doc(contractId).get();
   if (!snap.exists) return null;
   return toOrganizer(snap.id, snap.data()!);
+}
+
+/** ログイン中ユーザーの契約者レコードを ownerUid から引く。無ければ null。 */
+export async function findOrganizerByOwnerUid(ownerUid: string): Promise<Organizer | null> {
+  const snap = await db
+    .collection(ORGANIZERS_COLLECTION)
+    .where('ownerUid', '==', ownerUid)
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  return toOrganizer(doc.id, doc.data());
+}
+
+/**
+ * パスワード変更ゲートの判定（純粋関数）。
+ * 契約者レコードがあり mustChangePassword が立っている場合のみブロックする。
+ * レコードが無いユーザー（運営アカウント等）はブロックしない。
+ */
+export function shouldBlockForPasswordChange(
+  organizer: Pick<Organizer, 'mustChangePassword'> | null,
+): boolean {
+  return organizer?.mustChangePassword === true;
 }
 
 export async function listOrganizers(): Promise<Organizer[]> {
@@ -89,6 +119,7 @@ export interface CreateOrganizerData {
   subscriberCap?: number;
   couponCap?: number;
   agencyCode?: string | null;
+  mustChangePassword?: boolean;
 }
 
 export async function createOrganizerRecord(
@@ -104,6 +135,7 @@ export async function createOrganizerRecord(
       address: data.address,
       phone: data.phone,
       ownerUid: data.ownerUid,
+      mustChangePassword: data.mustChangePassword ?? false,
       status: 'active' as OrganizerStatus,
       startDate: data.startDate,
       subscriberCap: data.subscriberCap ?? DEFAULT_SUBSCRIBER_CAP,
@@ -125,9 +157,40 @@ export async function completeOrganizerRecord(
     .update({ ...patch, updatedAt: FieldValue.serverTimestamp() });
 }
 
+/** プロビジョニングの「更新」で書き換えてよい項目（認証情報は含めない）。 */
+export interface ProvisioningProfilePatch {
+  companyName?: string;
+  address?: string;
+  phone?: string;
+  subscriberCap?: number;
+  couponCap?: number;
+}
+
+/**
+ * 本家のプラン変更などに伴う契約者情報の更新。
+ * email / パスワード / ownerUid などの認証情報には一切触れない。
+ */
+export async function applyProvisioningUpdate(
+  contractId: string,
+  patch: ProvisioningProfilePatch,
+): Promise<void> {
+  await db
+    .collection(ORGANIZERS_COLLECTION)
+    .doc(contractId)
+    .update({ ...patch, updatedAt: FieldValue.serverTimestamp() });
+}
+
+/** 初回パスワード変更の完了を記録する（フラグを下ろす）。 */
+export async function clearMustChangePassword(contractId: string): Promise<void> {
+  await db
+    .collection(ORGANIZERS_COLLECTION)
+    .doc(contractId)
+    .update({ mustChangePassword: false, updatedAt: FieldValue.serverTimestamp() });
+}
+
 // ─── 連携ログ ───
 
-export type ProvisioningResult = 'created' | 'replayed' | 'failed';
+export type ProvisioningResult = 'created' | 'replayed' | 'updated' | 'failed';
 
 /**
  * 連携処理の結果を記録する。パスワードは絶対に記録しない

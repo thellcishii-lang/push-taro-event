@@ -7,6 +7,9 @@
 // まずはイベント設定に絞った単独画面にしている。
 // 同時に仕込めるイベントは3つまで（下書き＋開催中。終了は数えない）で、
 // 上限の判定は lib/event.ts の canCreateAnotherEvent、強制は POST /api/events 側。
+// 初回ログイン時（プロビジョニング直後）はパスワード変更が必須で、
+// 変更が終わるまでこの画面自体をパスワード変更フォームに差し替える
+// （判定は GET /api/organizers/me、変更系API側にも同じゲートがある）。
 // 画面の固定文は4言語辞書（lib/ui-text.ts）。主催者の表示言語は
 // この端末に保存される個人の選択（components/AdminLocale.tsx）。
 import { useCallback, useEffect, useState } from 'react';
@@ -15,6 +18,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase-client';
 import PasswordInput from '@/components/PasswordInput';
@@ -188,6 +192,11 @@ export default function EventAdminPage() {
   const [form, setForm] = useState<EventForm>(emptyForm);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  // 初回パスワード変更ゲートの状態（unknown の間は管理画面を出さない）。
+  const [passwordGate, setPasswordGate] = useState<'unknown' | 'required' | 'clear'>('unknown');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [gateMessage, setGateMessage] = useState('');
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -227,9 +236,67 @@ export default function EventAdminPage() {
     }
   }, [user, callApi, locale]);
 
+  // ログインしたら初回パスワード変更が必要かどうかを確認する。
   useEffect(() => {
-    if (user) void loadEvents();
-  }, [user, loadEvents]);
+    if (!user) {
+      setPasswordGate('unknown');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await callApi('/api/organizers/me');
+        if (!cancelled) {
+          setPasswordGate(data.mustChangePassword ? 'required' : 'clear');
+        }
+      } catch {
+        // 判定に失敗しても管理画面は開けるようにする
+        // （変更系API側のゲートが担保になっている）。
+        if (!cancelled) setPasswordGate('clear');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, callApi]);
+
+  useEffect(() => {
+    if (user && passwordGate === 'clear') void loadEvents();
+  }, [user, passwordGate, loadEvents]);
+
+  const handlePasswordChange = async () => {
+    if (!user) return;
+    setGateMessage('');
+    if (newPassword.length < 6) {
+      setGateMessage(adminText(locale, 'passwordTooShort'));
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setGateMessage(adminText(locale, 'passwordMismatch'));
+      return;
+    }
+    setBusy(true);
+    try {
+      await updatePassword(user, newPassword);
+      await callApi('/api/organizers/me/password-changed', { method: 'POST' });
+      window.location.reload();
+    } catch (e) {
+      const code =
+        e && typeof e === 'object' && 'code' in e
+          ? String((e as { code?: unknown }).code ?? '')
+          : '';
+      if (code === 'auth/requires-recent-login') {
+        setGateMessage(adminText(locale, 'passwordChangeRelogin'));
+      } else if (code.startsWith('auth/')) {
+        setGateMessage(adminText(locale, 'passwordChangeFailed'));
+      } else if (e instanceof Error && e.message) {
+        setGateMessage(e.message);
+      } else {
+        setGateMessage(adminText(locale, 'passwordChangeFailed'));
+      }
+      setBusy(false);
+    }
+  };
 
   const handleLogin = async () => {
     setBusy(true);
@@ -302,6 +369,46 @@ export default function EventAdminPage() {
             {adminText(locale, 'loginButton')}
           </button>
           {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
+        </section>
+      </main>
+    );
+  }
+
+  if (passwordGate === 'unknown') {
+    return <main style={containerStyle}>{uiText(locale, 'loading')}</main>;
+  }
+
+  if (passwordGate === 'required') {
+    return (
+      <main style={{ ...containerStyle, maxWidth: 480 }}>
+        <header style={headerStyle}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{adminText(locale, 'adminTitle')}</h1>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <AdminLanguageSelect locale={locale} onChange={setLocale} />
+            <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
+              {adminText(locale, 'logoutButton')}
+            </button>
+          </div>
+        </header>
+        <section style={{ ...cardStyle, padding: 20, marginTop: 16 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 8px' }}>
+            {adminText(locale, 'passwordChangeTitle')}
+          </h2>
+          <p style={{ fontSize: 14, color: '#475569', margin: '0 0 16px' }}>
+            {adminText(locale, 'passwordChangeBody')}
+          </p>
+          <label style={labelStyle}>
+            {adminText(locale, 'newPasswordLabel')}
+            <PasswordInput style={inputStyle} value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
+          </label>
+          <label style={labelStyle}>
+            {adminText(locale, 'newPasswordConfirmLabel')}
+            <PasswordInput style={inputStyle} value={newPasswordConfirm} onChange={setNewPasswordConfirm} autoComplete="new-password" />
+          </label>
+          <button onClick={handlePasswordChange} disabled={busy} style={{ ...primaryButtonStyle, width: '100%' }}>
+            {adminText(locale, 'passwordChangeButton')}
+          </button>
+          {gateMessage && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{gateMessage}</p>}
         </section>
       </main>
     );
