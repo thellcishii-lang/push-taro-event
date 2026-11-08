@@ -4,6 +4,8 @@
 // Push-taro EVENT の来場者登録画面（QRコードの着地先）。
 // 流れ: イベント情報の確認 → 電話番号のSMS認証 → 通知許可とFCMトークン取得 → 登録API。
 // 電話番号認証の作法は本家の登録画面（app/subscribe）に合わせている。
+// 画面の固定文は4言語辞書（lib/ui-text.ts）で切り替える。初期表示は
+// イベントのデフォルト言語、本人が切り替えたらその選択が優先される。
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -14,6 +16,13 @@ import {
   signInWithPhoneNumber,
 } from 'firebase/auth';
 import { auth, requestFCMToken } from '@/lib/firebase-client';
+import {
+  LOCALE_LABELS,
+  SUPPORTED_LOCALES,
+  resolveLocale,
+  type Locale,
+} from '@/lib/i18n';
+import { uiText } from '@/lib/ui-text';
 import { QRCodeSVG } from 'qrcode.react';
 
 interface PublicEvent {
@@ -22,6 +31,7 @@ interface PublicEvent {
   endDate: string;
   status: 'draft' | 'live' | 'ended';
   resetMode: 'full-daily' | 'keep-phones';
+  defaultLocale: string;
 }
 
 type Phase =
@@ -96,6 +106,7 @@ export default function EventVisitorPage() {
   const [event, setEvent] = useState<PublicEvent | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [user, setUser] = useState<User | null>(null);
+  const [locale, setLocale] = useState<Locale>('ja');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
@@ -120,6 +131,14 @@ export default function EventVisitorPage() {
         if (cancelled) return;
         const ev = data.event as PublicEvent;
         setEvent(ev);
+        // 本人の保存済み選択 > イベントのデフォルト > 日本語
+        let stored: string | null = null;
+        try {
+          stored = window.localStorage.getItem(`event-locale:${eventId}`);
+        } catch {
+          // 保存が読めなくてもデフォルト言語で続行する
+        }
+        setLocale(resolveLocale(stored, ev.defaultLocale));
         setPhase(ev.status === 'live' ? 'phone' : 'unavailable');
         // 案内PDFは登録前でも見られる（会場案内など）
         try {
@@ -147,10 +166,35 @@ export default function EventVisitorPage() {
     [],
   );
 
+  const handleLocaleChange = async (next: Locale) => {
+    setLocale(next);
+    try {
+      window.localStorage.setItem(`event-locale:${eventId}`, next);
+    } catch {
+      // 保存できなくても画面の切替は有効にする
+    }
+    // 登録済みなら、購読者の言語（＝プッシュの言語）も付け替える
+    if (user) {
+      try {
+        const idToken = await user.getIdToken();
+        await fetch(`/api/events/${eventId}/language`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ lang: next }),
+        });
+      } catch {
+        // 付け替えに失敗しても画面の切替は止めない（次回登録時に反映される）
+      }
+    }
+  };
+
   const handleSendCode = async () => {
     const normalized = normalizePhoneNumber(phoneNumber);
     if (!/^\+[1-9]\d{7,14}$/.test(normalized)) {
-      setMessage('電話番号は09012345678、または+819012345678の形式で入力してください。');
+      setMessage(uiText(locale, 'phoneFormatError'));
       return;
     }
     setBusy(true);
@@ -164,10 +208,10 @@ export default function EventVisitorPage() {
       const result = await signInWithPhoneNumber(auth, normalized, verifier);
       setConfirmationResult(result);
       setPhase('code');
-      setMessage('SMSで届いた認証コードを入力してください。');
+      setMessage(uiText(locale, 'codeSent'));
     } catch (error) {
       const code = (error as { code?: string }).code ?? 'unknown';
-      setMessage(`認証コードの送信に失敗しました（${code}）。`);
+      setMessage(uiText(locale, 'sendCodeFailed', { code }));
     } finally {
       setBusy(false);
     }
@@ -183,7 +227,7 @@ export default function EventVisitorPage() {
       setPhase('register');
     } catch (error) {
       const code = (error as { code?: string }).code ?? 'unknown';
-      setMessage(`認証コードが正しくありません（${code}）。`);
+      setMessage(uiText(locale, 'codeWrong', { code }));
     } finally {
       setBusy(false);
     }
@@ -200,20 +244,18 @@ export default function EventVisitorPage() {
         window.matchMedia('(display-mode: standalone)').matches;
       const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
       if (isIos && !isStandalone) {
-        setMessage(
-          'iPhoneでは通知の受け取りに「ホーム画面に追加」が必要です。\n\n1. Safari下部の「共有ボタン」をタップ\n2. 「ホーム画面に追加」を選択\n3. ホーム画面に作成されたアイコンから開いて、もう一度登録してください。',
-        );
+        setMessage(uiText(locale, 'iosStandalone'));
         return;
       }
 
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        setMessage('通知が許可されませんでした。ブラウザの設定で通知を許可してください。');
+        setMessage(uiText(locale, 'permissionDenied'));
         return;
       }
       const fcmToken = await requestFCMToken({ shopName: event.name });
       if (!fcmToken) {
-        setMessage('通知トークンの取得に失敗しました。対応ブラウザでお試しください。');
+        setMessage(uiText(locale, 'tokenFailed'));
         return;
       }
 
@@ -224,25 +266,25 @@ export default function EventVisitorPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ fcmToken }),
+        body: JSON.stringify({ fcmToken, lang: locale }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMessage(data.error ?? '登録に失敗しました。');
+        setMessage(data.error ?? uiText(locale, 'registerFailed'));
         return;
       }
       setPhase('done');
     } catch {
-      setMessage('登録に失敗しました。通信環境を確認してもう一度お試しください。');
+      setMessage(uiText(locale, 'registerRetry'));
     } finally {
       setBusy(false);
     }
   };
 
-  const loadCoupons = async (query: string) => {
+  const loadCoupons = async (query: string, loc: Locale) => {
     try {
       const res = await fetch(
-        `/api/events/${eventId}/coupons/public?q=${encodeURIComponent(query)}`,
+        `/api/events/${eventId}/coupons/public?q=${encodeURIComponent(query)}&lang=${loc}`,
       );
       const data = await res.json().catch(() => ({}));
       if (res.ok) setCoupons(data.coupons ?? []);
@@ -251,10 +293,10 @@ export default function EventVisitorPage() {
     }
   };
 
-  const loadMyClaims = async (currentUser: User) => {
+  const loadMyClaims = async (currentUser: User, loc: Locale) => {
     try {
       const idToken = await currentUser.getIdToken();
-      const res = await fetch(`/api/events/${eventId}/my-claims`, {
+      const res = await fetch(`/api/events/${eventId}/my-claims?lang=${loc}`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
       const data = await res.json().catch(() => ({}));
@@ -266,10 +308,10 @@ export default function EventVisitorPage() {
 
   useEffect(() => {
     if (!user) return;
-    void loadCoupons('');
-    void loadMyClaims(user);
+    void loadCoupons('', locale);
+    void loadMyClaims(user, locale);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, eventId]);
+  }, [user, eventId, locale]);
 
   const handleClaim = async (couponId: string) => {
     if (!user) return;
@@ -283,39 +325,53 @@ export default function EventVisitorPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setCouponMessage(data.error ?? 'クーポンの取得に失敗しました。');
+        setCouponMessage(data.error ?? uiText(locale, 'claimFailed'));
         return;
       }
-      setCouponMessage('クーポンを取得しました。ブースでQRコードを見せてください。');
-      await loadMyClaims(user);
+      setCouponMessage(uiText(locale, 'claimedMessage'));
+      await loadMyClaims(user, locale);
     } catch {
-      setCouponMessage('クーポンの取得に失敗しました。');
+      setCouponMessage(uiText(locale, 'claimFailed'));
     } finally {
       setBusy(false);
     }
   };
 
-  if (phase === 'loading') return <main style={containerStyle}>読み込み中…</main>;
+  if (phase === 'loading') return <main style={containerStyle}>{uiText(locale, 'loading')}</main>;
   if (phase === 'not-found') {
     return (
       <main style={containerStyle}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>イベントが見つかりません</h1>
-        <p style={{ fontSize: 14 }}>QRコードをもう一度読み取ってください。</p>
+        <h1 style={{ fontSize: 20, fontWeight: 800 }}>{uiText(locale, 'notFoundTitle')}</h1>
+        <p style={{ fontSize: 14 }}>{uiText(locale, 'notFoundBody')}</p>
       </main>
     );
   }
-  if (!event) return <main style={containerStyle}>読み込み中…</main>;
+  if (!event) return <main style={containerStyle}>{uiText(locale, 'loading')}</main>;
 
   return (
     <main style={containerStyle}>
       <h1 style={{ fontSize: 22, fontWeight: 800 }}>{event.name}</h1>
       <p style={{ fontSize: 13, color: '#475569' }}>
-        開催期間: {event.startDate} 〜 {event.endDate}
+        {uiText(locale, 'period', { start: event.startDate, end: event.endDate })}
       </p>
+      <div style={{ marginTop: 8 }}>
+        <select
+          aria-label={uiText(locale, 'language')}
+          value={locale}
+          onChange={(e) => void handleLocaleChange(e.target.value as Locale)}
+          style={{ padding: '6px 8px', fontSize: 14 }}
+        >
+          {SUPPORTED_LOCALES.map((l) => (
+            <option key={l} value={l}>
+              {LOCALE_LABELS[l]}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {infoPdfs.length > 0 && (
         <section style={{ marginTop: 20 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 800 }}>ご案内</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 800 }}>{uiText(locale, 'infoTitle')}</h2>
           {infoPdfs.map((pdf) => (
             <a
               key={pdf.id}
@@ -343,18 +399,16 @@ export default function EventVisitorPage() {
       {phase === 'unavailable' && (
         <p style={{ fontSize: 15, marginTop: 24 }}>
           {event.status === 'ended'
-            ? 'このイベントは終了しました。'
-            : 'このイベントは現在、登録を受け付けていません。'}
+            ? uiText(locale, 'endedMessage')
+            : uiText(locale, 'notAccepting')}
         </p>
       )}
 
       {phase === 'phone' && (
         <section style={{ marginTop: 24 }}>
-          <p style={{ fontSize: 14 }}>
-            会場からのお知らせとクーポンを受け取るには、電話番号で登録してください。
-          </p>
+          <p style={{ fontSize: 14 }}>{uiText(locale, 'registerIntro')}</p>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 16 }}>
-            電話番号
+            {uiText(locale, 'phoneLabel')}
             <input
               style={inputStyle}
               type="tel"
@@ -365,7 +419,7 @@ export default function EventVisitorPage() {
           </label>
           <div id="recaptcha-container" style={{ marginTop: 12 }} />
           <button style={buttonStyle} onClick={handleSendCode} disabled={busy}>
-            SMSで認証コードを送る
+            {uiText(locale, 'sendCode')}
           </button>
         </section>
       )}
@@ -373,65 +427,61 @@ export default function EventVisitorPage() {
       {phase === 'code' && (
         <section style={{ marginTop: 24 }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
-            認証コード
+            {uiText(locale, 'codeLabel')}
             <input
               style={inputStyle}
               type="text"
               inputMode="numeric"
               value={verificationCode}
               onChange={(e) => setVerificationCode(e.target.value)}
-              placeholder="6桁のコード"
+              placeholder={uiText(locale, 'codePlaceholder')}
             />
           </label>
           <button style={buttonStyle} onClick={handleConfirmCode} disabled={busy}>
-            認証する
+            {uiText(locale, 'confirmCode')}
           </button>
         </section>
       )}
 
       {phase === 'register' && (
         <section style={{ marginTop: 24 }}>
-          <p style={{ fontSize: 14 }}>
-            電話番号の認証が完了しました。最後に通知の許可をしてください。
-          </p>
+          <p style={{ fontSize: 14 }}>{uiText(locale, 'verifiedIntro')}</p>
           <button style={buttonStyle} onClick={handleRegister} disabled={busy}>
-            通知を登録する
+            {uiText(locale, 'registerButton')}
           </button>
         </section>
       )}
 
       {phase === 'done' && (
         <section style={{ marginTop: 24 }}>
-          <p style={{ fontSize: 17, fontWeight: 700 }}>登録が完了しました</p>
-          <p style={{ fontSize: 14, marginTop: 12 }}>
-            通知登録は毎日リセットされます。翌日も通知を受け取るには、もう一度このページから登録してください。
-          </p>
+          <p style={{ fontSize: 17, fontWeight: 700 }}>{uiText(locale, 'doneTitle')}</p>
+          <p style={{ fontSize: 14, marginTop: 12 }}>{uiText(locale, 'dailyResetNote')}</p>
           <p style={{ fontSize: 14, marginTop: 8 }}>
             {event.resetMode === 'keep-phones'
-              ? '電話番号とクーポンの取得・利用記録は会期中保持され、イベント終了時に消去されます。'
-              : '電話番号も含め、登録情報は毎日すべて消去されます。'}
+              ? uiText(locale, 'keepPhonesNote')
+              : uiText(locale, 'fullDailyNote')}
           </p>
         </section>
       )}
 
       {user && (phase === 'register' || phase === 'done') && (
         <section style={{ marginTop: 32, borderTop: '1px solid #e2e8f0', paddingTop: 20 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800 }}>クーポン</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 800 }}>{uiText(locale, 'couponsTitle')}</h2>
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
             <input
               style={{ ...inputStyle, marginTop: 0, flex: 1 }}
               type="search"
               value={couponQuery}
               onChange={(e) => setCouponQuery(e.target.value)}
-              placeholder="会社名・キーワードで検索"
+              placeholder={uiText(locale, 'searchPlaceholder')}
             />
-            <button onClick={() => void loadCoupons(couponQuery)} style={{ padding: '0 16px', fontWeight: 700 }}>
-              検索
+            <button onClick={() => void loadCoupons(couponQuery, locale)} style={{ padding: '0 16px', fontWeight: 700 }}>
+              {uiText(locale, 'searchButton')}
             </button>
           </div>
 
           {coupons.length === 0 && (
-            <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>クーポンがありません。</p>
+            <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>{uiText(locale, 'noCoupons')}</p>
           )}
           {coupons.map((coupon) => {
             const claim = myClaims.find((c) => c.couponId === coupon.id);
@@ -448,7 +498,11 @@ export default function EventVisitorPage() {
                   disabled={busy || claim !== undefined}
                   style={{ marginTop: 8, padding: '8px 16px', fontWeight: 700 }}
                 >
-                  {claim ? (claim.status === 'redeemed' ? '消込済み' : '取得済み') : '取得する'}
+                  {claim
+                    ? claim.status === 'redeemed'
+                      ? uiText(locale, 'redeemedButton')
+                      : uiText(locale, 'claimedButton')
+                    : uiText(locale, 'claimButton')}
                 </button>
               </article>
             );
@@ -456,7 +510,7 @@ export default function EventVisitorPage() {
 
           {myClaims.length > 0 && (
             <>
-              <h3 style={{ fontSize: 15, fontWeight: 700, marginTop: 24 }}>取得済みクーポン</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginTop: 24 }}>{uiText(locale, 'myCouponsTitle')}</h3>
               {myClaims.map((claim) => (
                 <article
                   key={claim.claimId}
@@ -465,10 +519,10 @@ export default function EventVisitorPage() {
                   <div style={{ fontWeight: 700, fontSize: 15 }}>{claim.title}</div>
                   <div style={{ fontSize: 12, color: '#475569' }}>{claim.exhibitorName}</div>
                   {claim.status === 'redeemed' ? (
-                    <p style={{ fontSize: 13, marginTop: 8, color: '#64748b' }}>消込済みです</p>
+                    <p style={{ fontSize: 13, marginTop: 8, color: '#64748b' }}>{uiText(locale, 'redeemedNote')}</p>
                   ) : (
                     <>
-                      <p style={{ fontSize: 13, marginTop: 8 }}>ブースでこのQRコードを見せてください</p>
+                      <p style={{ fontSize: 13, marginTop: 8 }}>{uiText(locale, 'showQrNote')}</p>
                       <div style={{ marginTop: 8 }}>
                         <QRCodeSVG value={claim.claimId} size={160} />
                       </div>

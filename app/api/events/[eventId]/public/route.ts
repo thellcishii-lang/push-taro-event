@@ -22,6 +22,7 @@ export async function GET(
       endDate: event.endDate,
       status: event.status,
       resetMode: event.resetMode,
+      defaultLocale: event.defaultLocale,
     },
   });
 }
