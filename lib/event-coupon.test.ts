@@ -8,6 +8,7 @@ import {
   filterCoupons,
   isCouponCapReached,
   memberIdForPhone,
+  tallyClaimsByCoupon,
 } from './event-coupon';
 
 const couponA: EventCoupon = {
@@ -104,6 +105,30 @@ describe('isCouponCapReached（クーポン上限）', () => {
   it('上限はイベントごとに変えられる前提で判定する', () => {
     expect(isCouponCapReached(100, 200)).toBe(false);
     expect(isCouponCapReached(200, 200)).toBe(true);
+  });
+});
+
+describe('tallyClaimsByCoupon（取得・消込件数の集計）', () => {
+  it('記録がなければ空の Map', () => {
+    expect(tallyClaimsByCoupon([]).size).toBe(0);
+  });
+  it('クーポンごとに取得総数と消込数を数える', () => {
+    const tally = tallyClaimsByCoupon([
+      { couponId: 'coupon-a', status: 'claimed' },
+      { couponId: 'coupon-a', status: 'redeemed' },
+      { couponId: 'coupon-a', status: 'redeemed' },
+      { couponId: 'coupon-b', status: 'claimed' },
+    ]);
+    expect(tally.get('coupon-a')).toEqual({ claimedCount: 3, redeemedCount: 2 });
+    expect(tally.get('coupon-b')).toEqual({ claimedCount: 1, redeemedCount: 0 });
+    expect(tally.get('coupon-c')).toBeUndefined();
+  });
+  it('全件消込済みなら取得数と消込数が一致する', () => {
+    const tally = tallyClaimsByCoupon([
+      { couponId: 'coupon-a', status: 'redeemed' },
+      { couponId: 'coupon-a', status: 'redeemed' },
+    ]);
+    expect(tally.get('coupon-a')).toEqual({ claimedCount: 2, redeemedCount: 2 });
   });
 });
 

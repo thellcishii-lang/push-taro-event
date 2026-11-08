@@ -8,6 +8,8 @@
 // カメラ読み取りの作法は本家の店舗画面（app/shop）に合わせている。
 // 画面の固定文は4言語辞書（lib/ui-text.ts）。出店者の言語は
 // 出店者レコードに保存され、次回ログイン時も引き継がれる。
+// 見た目は来場者画面（PR #29）と共通のデザイン言語（紫基調・角丸カード）。
+// ブースで立ったまま使うため、スキャンボタンと結果表示は大きく作る。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -38,23 +40,107 @@ interface OwnCoupon {
   title: string;
   description: string;
   active: boolean;
+  claimedCount?: number;
+  redeemedCount?: number;
 }
 
+const VIOLET = '#6D28D9';
+const VIOLET_BRIGHT = '#7C3AED';
+
 const containerStyle: React.CSSProperties = {
-  padding: 24,
-  maxWidth: 520,
+  padding: '16px 16px 32px',
+  maxWidth: 480,
   margin: '0 auto',
   fontFamily: 'sans-serif',
+  backgroundColor: '#f8fafc',
+  minHeight: '100vh',
+  boxSizing: 'border-box',
+  color: '#0f172a',
+};
+
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 12,
+  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
+};
+
+const headerStyle: React.CSSProperties = {
+  background: `linear-gradient(135deg, ${VIOLET_BRIGHT}, ${VIOLET})`,
+  borderRadius: 16,
+  padding: '18px 16px',
+  color: '#ffffff',
+  boxShadow: '0 4px 14px rgba(109, 40, 217, 0.35)',
 };
 
 const inputStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
-  padding: '10px 12px',
+  padding: '12px 12px',
   marginTop: 6,
   border: '1px solid #cbd5e1',
-  borderRadius: 6,
+  borderRadius: 10,
   fontSize: 16,
+  backgroundColor: '#ffffff',
+  boxSizing: 'border-box',
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '14px 20px',
+  fontWeight: 700,
+  fontSize: 16,
+  backgroundColor: VIOLET,
+  color: '#ffffff',
+  border: 'none',
+  borderRadius: 10,
+  cursor: 'pointer',
+};
+
+const scanButtonStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '20px 16px',
+  fontWeight: 800,
+  fontSize: 19,
+  background: `linear-gradient(135deg, ${VIOLET_BRIGHT}, ${VIOLET})`,
+  color: '#ffffff',
+  border: 'none',
+  borderRadius: 14,
+  cursor: 'pointer',
+  boxShadow: '0 4px 14px rgba(109, 40, 217, 0.35)',
+};
+
+const stopButtonStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '16px 20px',
+  fontWeight: 700,
+  fontSize: 17,
+  backgroundColor: '#ffffff',
+  color: '#b91c1c',
+  border: '2px solid #ef4444',
+  borderRadius: 14,
+  cursor: 'pointer',
+};
+
+const languageSelectStyle: React.CSSProperties = {
+  padding: '6px 10px',
+  fontSize: 14,
+  borderRadius: 999,
+  border: 'none',
+  backgroundColor: '#ffffff',
+  color: '#0f172a',
+  fontWeight: 600,
+};
+
+const logoutButtonStyle: React.CSSProperties = {
+  padding: '7px 14px',
+  fontSize: 14,
+  fontWeight: 600,
+  borderRadius: 999,
+  border: '1px solid rgba(255, 255, 255, 0.5)',
+  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  color: '#ffffff',
+  cursor: 'pointer',
 };
 
 export default function ExhibitorRedeemPage() {
@@ -162,7 +248,7 @@ export default function ExhibitorRedeemPage() {
       aria-label={uiText(locale, 'language')}
       value={locale}
       onChange={(e) => void handleLocaleChange(e.target.value as Locale)}
-      style={{ padding: '6px 8px', fontSize: 14 }}
+      style={languageSelectStyle}
     >
       {SUPPORTED_LOCALES.map((l) => (
         <option key={l} value={l}>
@@ -170,6 +256,81 @@ export default function ExhibitorRedeemPage() {
         </option>
       ))}
     </select>
+  );
+
+  const brandHeader = (title: string, extra?: React.ReactNode) => (
+    <header style={headerStyle}>
+      <p style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255, 255, 255, 0.85)', margin: 0 }}>
+        Push-taro EVENT
+      </p>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: 8,
+          marginTop: 4,
+        }}
+      >
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{title}</h1>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          {languageSelect}
+          {extra}
+        </div>
+      </div>
+    </header>
+  );
+
+  const resultCard = result && (
+    <div
+      role="status"
+      style={{
+        ...cardStyle,
+        marginTop: 16,
+        padding: '18px 16px',
+        display: 'flex',
+        gap: 14,
+        alignItems: 'center',
+        backgroundColor: result.ok ? '#f0fdf4' : '#fef2f2',
+        border: `2px solid ${result.ok ? '#22c55e' : '#ef4444'}`,
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: '50%',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 26,
+          fontWeight: 800,
+          color: '#ffffff',
+          backgroundColor: result.ok ? '#16a34a' : '#dc2626',
+        }}
+      >
+        {result.ok ? '✓' : '✕'}
+      </div>
+      <div>
+        {result.ok && (
+          <p style={{ fontSize: 20, fontWeight: 800, color: '#15803d', margin: 0 }}>
+            {redeemText(locale, 'redeemDoneTitle')}
+          </p>
+        )}
+        <p
+          style={{
+            fontSize: 16,
+            fontWeight: 700,
+            color: result.ok ? '#166534' : '#b91c1c',
+            margin: result.ok ? '4px 0 0' : 0,
+          }}
+        >
+          {result.text}
+        </p>
+      </div>
+    </div>
   );
 
   const handleLogin = async () => {
@@ -196,6 +357,12 @@ export default function ExhibitorRedeemPage() {
         });
         setResult({ ok: true, text: redeemText(locale, 'redeemDone') });
         setManualClaimId('');
+        // 消込したので件数表示を最新化する（失敗しても成功表示はそのまま）
+        try {
+          await loadCoupons();
+        } catch {
+          // 件数の再取得失敗で消込成功の表示は妨げない
+        }
       } catch (e) {
         setResult({
           ok: false,
@@ -205,7 +372,7 @@ export default function ExhibitorRedeemPage() {
         setBusy(false);
       }
     },
-    [callApi, eventId, locale],
+    [callApi, eventId, locale, loadCoupons],
   );
 
   const stopCamera = useCallback(async () => {
@@ -261,93 +428,195 @@ export default function ExhibitorRedeemPage() {
   if (!user) {
     return (
       <main style={containerStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ fontSize: 20, fontWeight: 800 }}>{redeemText(locale, 'redeemLoginTitle')}</h1>
-          {languageSelect}
-        </div>
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 16 }}>
-          {redeemText(locale, 'emailLabel')}
-          <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 12 }}>
-          {redeemText(locale, 'passwordLabel')}
-          <PasswordInput style={inputStyle} value={password} onChange={setPassword} autoComplete="current-password" />
-        </label>
-        <button onClick={handleLogin} disabled={busy} style={{ width: '100%', padding: '12px 20px', fontWeight: 700, marginTop: 16 }}>
-          {redeemText(locale, 'loginButton')}
-        </button>
-        {result && <p style={{ marginTop: 12, fontSize: 14, color: '#b91c1c' }}>{result.text}</p>}
+        {brandHeader(redeemText(locale, 'redeemLoginTitle'))}
+        <section style={{ ...cardStyle, padding: 16, marginTop: 16 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
+            {redeemText(locale, 'emailLabel')}
+            <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 12 }}>
+            {redeemText(locale, 'passwordLabel')}
+            <PasswordInput style={inputStyle} value={password} onChange={setPassword} autoComplete="current-password" />
+          </label>
+          <button
+            onClick={handleLogin}
+            disabled={busy}
+            style={{ ...primaryButtonStyle, marginTop: 20, opacity: busy ? 0.6 : 1 }}
+          >
+            {redeemText(locale, 'loginButton')}
+          </button>
+        </section>
+        {resultCard}
       </main>
     );
   }
 
   return (
     <main style={containerStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>{redeemText(locale, 'redeemTitle')}</h1>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {languageSelect}
-          <button onClick={() => void signOut(auth)}>{redeemText(locale, 'logoutButton')}</button>
-        </div>
-      </div>
+      {brandHeader(
+        redeemText(locale, 'redeemTitle'),
+        <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
+          {redeemText(locale, 'logoutButton')}
+        </button>,
+      )}
 
       {exhibitorError && (
-        <p style={{ marginTop: 16, fontSize: 14, color: '#b91c1c' }}>
+        <div
+          style={{
+            ...cardStyle,
+            marginTop: 16,
+            padding: '14px 16px',
+            fontSize: 15,
+            fontWeight: 600,
+            color: '#b91c1c',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+          }}
+        >
           {exhibitorError}
           {redeemText(locale, 'exhibitorErrorNote')}
-        </p>
+        </div>
       )}
 
       {exhibitor && (
         <>
-          <p style={{ fontSize: 14, marginTop: 8 }}>
-            {redeemText(locale, 'exhibitorLine', { name: exhibitor.name })}
-          </p>
-
-          <div id="qr-reader" style={{ width: '100%', marginTop: 16 }} />
-          {!scanning ? (
-            <button onClick={startCamera} disabled={busy} style={{ width: '100%', padding: '12px 20px', fontWeight: 700, marginTop: 8 }}>
-              {redeemText(locale, 'cameraStart')}
-            </button>
-          ) : (
-            <button onClick={() => void stopCamera()} style={{ width: '100%', padding: '12px 20px', fontWeight: 700, marginTop: 8 }}>
-              {redeemText(locale, 'cameraStop')}
-            </button>
-          )}
-
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 20 }}>
-            {redeemText(locale, 'manualLabel')}
-            <input
-              style={inputStyle}
-              type="text"
-              value={manualClaimId}
-              onChange={(e) => setManualClaimId(e.target.value)}
-              placeholder={redeemText(locale, 'claimCodePlaceholder')}
-            />
-          </label>
-          <button
-            onClick={() => void doRedeem(manualClaimId)}
-            disabled={busy || !manualClaimId.trim()}
-            style={{ width: '100%', padding: '12px 20px', fontWeight: 700, marginTop: 10 }}
-          >
-            {redeemText(locale, 'redeemButton')}
-          </button>
-
-          {result && (
-            <p style={{ marginTop: 14, fontSize: 15, fontWeight: 700, color: result.ok ? '#15803d' : '#b91c1c' }}>
-              {result.text}
+          <section style={{ ...cardStyle, padding: '14px 16px', marginTop: 16 }}>
+            <p style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>
+              {redeemText(locale, 'exhibitorLine', { name: exhibitor.name })}
             </p>
-          )}
+          </section>
 
-          <h2 style={{ fontSize: 15, fontWeight: 700, marginTop: 28 }}>{redeemText(locale, 'ownCouponsTitle')}</h2>
+          <section style={{ ...cardStyle, padding: 16, marginTop: 16 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
+              {redeemText(locale, 'scannerTitle')}
+            </h2>
+            {!scanning && (
+              <div
+                aria-hidden="true"
+                style={{
+                  marginTop: 12,
+                  height: 190,
+                  borderRadius: 12,
+                  backgroundColor: '#0f172a',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 12,
+                  padding: '0 20px',
+                }}
+              >
+                <div
+                  style={{
+                    width: 104,
+                    height: 104,
+                    border: '2px dashed rgba(255, 255, 255, 0.55)',
+                    borderRadius: 12,
+                  }}
+                />
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: 'rgba(255, 255, 255, 0.85)',
+                    textAlign: 'center',
+                    margin: 0,
+                  }}
+                >
+                  {redeemText(locale, 'scanHint')}
+                </p>
+              </div>
+            )}
+            <div
+              id="qr-reader"
+              style={{ width: '100%', marginTop: scanning ? 12 : 0, borderRadius: 12, overflow: 'hidden' }}
+            />
+            {!scanning ? (
+              <button
+                onClick={startCamera}
+                disabled={busy}
+                style={{ ...scanButtonStyle, marginTop: 14, opacity: busy ? 0.6 : 1 }}
+              >
+                {redeemText(locale, 'cameraStart')}
+              </button>
+            ) : (
+              <button onClick={() => void stopCamera()} style={{ ...stopButtonStyle, marginTop: 14 }}>
+                {redeemText(locale, 'cameraStop')}
+              </button>
+            )}
+          </section>
+
+          {resultCard}
+
+          <section style={{ ...cardStyle, padding: 16, marginTop: 16 }}>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>
+              {redeemText(locale, 'manualLabel')}
+              <input
+                style={inputStyle}
+                type="text"
+                value={manualClaimId}
+                onChange={(e) => setManualClaimId(e.target.value)}
+                placeholder={redeemText(locale, 'claimCodePlaceholder')}
+              />
+            </label>
+            <button
+              onClick={() => void doRedeem(manualClaimId)}
+              disabled={busy || !manualClaimId.trim()}
+              style={{
+                ...primaryButtonStyle,
+                marginTop: 12,
+                opacity: busy || !manualClaimId.trim() ? 0.6 : 1,
+              }}
+            >
+              {redeemText(locale, 'redeemButton')}
+            </button>
+          </section>
+
+          <h2 style={{ fontSize: 17, fontWeight: 800, marginTop: 28 }}>
+            {redeemText(locale, 'ownCouponsTitle')}
+          </h2>
           {coupons.length === 0 && (
-            <p style={{ fontSize: 13, color: '#64748b' }}>{redeemText(locale, 'noOwnCoupons')}</p>
+            <p style={{ fontSize: 14, color: '#64748b' }}>{redeemText(locale, 'noOwnCoupons')}</p>
           )}
           {coupons.map((coupon) => (
-            <article key={coupon.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 8 }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{coupon.title}</div>
-              {coupon.description && <p style={{ fontSize: 13, marginTop: 2 }}>{coupon.description}</p>}
-              {!coupon.active && <p style={{ fontSize: 12, color: '#b91c1c' }}>{redeemText(locale, 'couponInactive')}</p>}
+            <article
+              key={coupon.id}
+              style={{ ...cardStyle, borderLeft: `4px solid ${VIOLET}`, padding: '14px 16px', marginTop: 10 }}
+            >
+              <div style={{ fontWeight: 700, fontSize: 16 }}>{coupon.title}</div>
+              {coupon.description && (
+                <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>{coupon.description}</p>
+              )}
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#334155', margin: '8px 0 0' }}>
+                {redeemText(locale, 'claimedCount', { count: String(coupon.claimedCount ?? 0) })}
+                {' ・ '}
+                {redeemText(locale, 'redeemedCount', { count: String(coupon.redeemedCount ?? 0) })}
+              </p>
+              {(coupon.claimedCount ?? 0) > 0 && (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    height: 8,
+                    borderRadius: 999,
+                    backgroundColor: '#e2e8f0',
+                    marginTop: 6,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${Math.round(((coupon.redeemedCount ?? 0) / (coupon.claimedCount ?? 1)) * 100)}%`,
+                      backgroundColor: VIOLET,
+                      borderRadius: 999,
+                    }}
+                  />
+                </div>
+              )}
+              {!coupon.active && (
+                <p style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', margin: '6px 0 0' }}>
+                  {redeemText(locale, 'couponInactive')}
+                </p>
+              )}
             </article>
           ))}
         </>
