@@ -93,6 +93,11 @@ export interface CreateEventInput {
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 /** Date を JST の 'YYYY-MM-DD' に変換する（coupon-day.ts の couponDay と同じ方式）。 */
+/** 購読者の言語別 FCM トピック名。配信は言語ごとにこのトピックへ送る。 */
+export function localeTopic(eventId: string, locale: Locale): string {
+  return `event_${eventId}_users_${locale}`;
+}
+
 export function jstDateString(date: Date): string {
   return new Date(date.getTime() + JST_OFFSET_MS).toISOString().slice(0, 10);
 }
