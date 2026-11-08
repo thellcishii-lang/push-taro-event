@@ -42,6 +42,19 @@ export function resolveLocale(personal?: unknown, eventDefault?: unknown): Local
   return normalizeLocale(eventDefault);
 }
 
+/** Firestore から読んだ未検証の値を、言語別文言マップとして解釈する。 */
+export function parseLocalizedTexts(
+  value: unknown,
+): Partial<Record<Locale, string>> {
+  if (!value || typeof value !== 'object') return {};
+  const result: Partial<Record<Locale, string>> = {};
+  for (const locale of SUPPORTED_LOCALES) {
+    const text = (value as Record<string, unknown>)[locale];
+    if (typeof text === 'string' && text.trim()) result[locale] = text;
+  }
+  return result;
+}
+
 /**
  * 言語別の文言マップから実効言語に合う文言を選ぶ。
  * 実効言語 → イベントのデフォルト → 日本語 → その他、の順に探し、

@@ -16,6 +16,8 @@ const couponA: EventCoupon = {
   exhibitorName: '株式会社アルファ',
   title: 'ドリンク1杯無料',
   description: 'ブースで使える',
+  titleI18n: {},
+  descriptionI18n: {},
   keywords: ['飲み物', '無料'],
   active: true,
 };
@@ -25,6 +27,8 @@ const couponB: EventCoupon = {
   exhibitorName: 'ベータ商会',
   title: 'ノベルティ進呈',
   description: '',
+  titleI18n: {},
+  descriptionI18n: {},
   keywords: ['グッズ'],
   active: true,
 };

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isLocale,
   normalizeLocale,
+  parseLocalizedTexts,
   pickLocalizedText,
   resolveLocale,
 } from './i18n';
@@ -61,5 +62,21 @@ describe('pickLocalizedText', () => {
   });
   it('全て無ければ空文字', () => {
     expect(pickLocalizedText({}, 'en', 'en')).toBe('');
+  });
+});
+
+describe('parseLocalizedTexts', () => {
+  it('対応言語の文字列だけを拾う', () => {
+    expect(
+      parseLocalizedTexts({ ja: 'あ', en: 'a', fr: 'x', ko: 42 }),
+    ).toEqual({ ja: 'あ', en: 'a' });
+  });
+  it('空文字は無いものとして扱う', () => {
+    expect(parseLocalizedTexts({ ja: '  ', en: 'a' })).toEqual({ en: 'a' });
+  });
+  it('オブジェクトでなければ空マップ', () => {
+    expect(parseLocalizedTexts(null)).toEqual({});
+    expect(parseLocalizedTexts('ja')).toEqual({});
+    expect(parseLocalizedTexts(undefined)).toEqual({});
   });
 });
