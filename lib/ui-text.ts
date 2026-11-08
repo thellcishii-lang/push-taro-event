@@ -389,6 +389,18 @@ export const REDEEM_TEXT = {
     zh: '参展商：{name}（只能核销本公司的优惠券）',
     ko: '출점자: {name}(자사 쿠폰만 사용 처리할 수 있습니다)',
   },
+  scannerTitle: {
+    ja: 'QRコードスキャナー',
+    en: 'QR code scanner',
+    zh: '二维码扫描',
+    ko: 'QR 코드 스캐너',
+  },
+  scanHint: {
+    ja: '来場者のクーポンQRコードをカメラに向けてください',
+    en: "Point the camera at the visitor's coupon QR code",
+    zh: '请将来访者的优惠券二维码对准摄像头',
+    ko: '방문객의 쿠폰 QR 코드를 카메라에 비춰 주세요',
+  },
   cameraStart: {
     ja: 'カメラでQRコードを読み取る',
     en: 'Scan QR code with camera',
@@ -436,6 +448,12 @@ export const REDEEM_TEXT = {
     en: 'Redeem',
     zh: '核销',
     ko: '사용 처리',
+  },
+  redeemDoneTitle: {
+    ja: '消込完了',
+    en: 'Redemption complete',
+    zh: '核销完成',
+    ko: '사용 처리 완료',
   },
   redeemDone: {
     ja: '消込が完了しました。',
