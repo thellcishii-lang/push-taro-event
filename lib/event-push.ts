@@ -15,6 +15,8 @@ import {
   jstDateString,
   jstTimeString,
 } from './event';
+import { parseLocalizedTexts, type Locale } from './i18n';
+import { translateText } from './translate';
 
 export const EVENT_CAMPAIGNS_COLLECTION = 'campaigns';
 
@@ -30,6 +32,10 @@ export interface EventCampaign {
   id: string;
   title: string;
   body: string;
+  /** タイトルの言語別マップ（作成時に自動翻訳。原文の言語には原文が入る） */
+  titleI18n: Partial<Record<Locale, string>>;
+  /** 本文の言語別マップ（同上） */
+  bodyI18n: Partial<Record<Locale, string>>;
   kind: CampaignKind;
   status: CampaignStatus;
   /** 予約時刻（JST 'YYYY-MM-DDTHH:MM'、15分刻み）。即時配信は作成時刻 */
@@ -84,6 +90,8 @@ function toCampaign(doc: FirebaseFirestore.DocumentSnapshot): EventCampaign {
     id: doc.id,
     title: String(d.title ?? ''),
     body: String(d.body ?? ''),
+    titleI18n: parseLocalizedTexts(d.titleI18n),
+    bodyI18n: parseLocalizedTexts(d.bodyI18n),
     kind: d.kind === 'scheduled' ? 'scheduled' : 'instant',
     status: (d.status as CampaignStatus) ?? 'scheduled',
     scheduledAt: (d.scheduledAt as string | null) ?? null,
@@ -108,10 +116,17 @@ export async function createCampaignRecord(
   const body = input.body.trim();
   if (!title) throw new Error('タイトルが必要です');
   if (!body) throw new Error('本文が必要です');
+  // 作成時に翻訳を揃える（即時配信でも翻訳待ちを作らない）。失敗時は空マップで続行。
+  const [titleI18n, bodyI18n] = await Promise.all([
+    translateText(title),
+    translateText(body),
+  ]);
   const ref = campaignsRef(eventId).doc();
   await ref.set({
     title,
     body,
+    titleI18n,
+    bodyI18n,
     kind: input.kind,
     status: 'scheduled',
     scheduledAt: input.scheduledAt,

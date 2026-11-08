@@ -65,3 +65,13 @@ export const authAdmin = new Proxy({} as Auth, {
     return typeof value === 'function' ? value.bind(instance) : value;
   },
 });
+
+/** サーバー側の Google API 呼び出し用に、サービスアカウントのアクセストークンを取得する。 */
+export async function getAdminAccessToken(): Promise<string> {
+  const credential = getAdminApp().options.credential;
+  if (!credential) {
+    throw new Error('Firebase Admin の資格情報がありません');
+  }
+  const token = await credential.getAccessToken();
+  return token.access_token;
+}

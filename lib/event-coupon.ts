@@ -16,7 +16,8 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebase-admin';
 import { EVENT_SUBCOLLECTIONS, MAX_COUPONS_PER_EVENT } from './event';
 import { getEvent } from './event-store';
-import { normalizeLocale, resolveLocale, type Locale } from './i18n';
+import { normalizeLocale, parseLocalizedTexts, resolveLocale, type Locale } from './i18n';
+import { translateText } from './translate';
 
 // exhibitors / coupons はリセット・終了削除の対象外（個人情報を含まない台帳）。
 // 削除対象は EVENT_SUBCOLLECTIONS の4つ（subscribers/members/claims/redemptions）。
@@ -37,6 +38,10 @@ export interface EventCoupon {
   exhibitorName: string;
   title: string;
   description: string;
+  /** タイトルの言語別マップ（作成時に自動翻訳） */
+  titleI18n: Partial<Record<Locale, string>>;
+  /** 説明文の言語別マップ（同上） */
+  descriptionI18n: Partial<Record<Locale, string>>;
   keywords: string[];
   active: boolean;
 }
@@ -203,12 +208,20 @@ export async function createCoupon(
   }
 
   const ref = couponsRef(eventId).doc();
+  const description = (input.description ?? '').trim();
+  // 作成時に翻訳を揃える。失敗時は空マップで続行（原文表示にフォールバック）。
+  const [titleI18n, descriptionI18n] = await Promise.all([
+    translateText(title),
+    translateText(description),
+  ]);
   const coupon: EventCoupon = {
     id: ref.id,
     exhibitorId: exhibitor.id,
     exhibitorName: exhibitor.name,
     title,
-    description: (input.description ?? '').trim(),
+    description,
+    titleI18n,
+    descriptionI18n,
     keywords: (input.keywords ?? []).map((k) => k.trim()).filter(Boolean),
     active: true,
   };
@@ -226,6 +239,8 @@ export async function listCoupons(eventId: string): Promise<EventCoupon[]> {
       exhibitorName: String(data.exhibitorName ?? ''),
       title: String(data.title ?? ''),
       description: String(data.description ?? ''),
+      titleI18n: parseLocalizedTexts(data.titleI18n),
+      descriptionI18n: parseLocalizedTexts(data.descriptionI18n),
       keywords: Array.isArray(data.keywords) ? (data.keywords as string[]) : [],
       active: data.active !== false,
     };
@@ -245,6 +260,8 @@ export async function getCoupon(
     exhibitorName: String(data.exhibitorName ?? ''),
     title: String(data.title ?? ''),
     description: String(data.description ?? ''),
+    titleI18n: parseLocalizedTexts(data.titleI18n),
+    descriptionI18n: parseLocalizedTexts(data.descriptionI18n),
     keywords: Array.isArray(data.keywords) ? (data.keywords as string[]) : [],
     active: data.active !== false,
   };
