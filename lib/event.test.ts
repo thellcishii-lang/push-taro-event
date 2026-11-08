@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   EventConfig,
+  MAX_CONCURRENT_EVENTS,
+  canCreateAnotherEvent,
+  countConcurrentEvents,
+  countsTowardConcurrentCap,
   isFinalizationDue,
   isResetDue,
   isValidResetTime,
@@ -91,6 +95,42 @@ describe('isFinalizationDue', () => {
         { ...fin, finalizedAt: '2026-11-09T00:00:00.000Z' },
         jst('2026-11-08T15:00:00Z'),
       ),
+    ).toBe(false);
+  });
+});
+
+describe('同時イベント上限（MAX_CONCURRENT_EVENTS）', () => {
+  const ev = (status: EventConfig['status']) => ({ status });
+
+  it('上限は3', () => {
+    expect(MAX_CONCURRENT_EVENTS).toBe(3);
+  });
+
+  it('終了したイベントは数えない', () => {
+    expect(countsTowardConcurrentCap(ev('draft'))).toBe(true);
+    expect(countsTowardConcurrentCap(ev('live'))).toBe(true);
+    expect(countsTowardConcurrentCap(ev('ended'))).toBe(false);
+    expect(
+      countConcurrentEvents([ev('live'), ev('ended'), ev('draft'), ev('ended')]),
+    ).toBe(2);
+  });
+
+  it('イベントが無ければ作成できる', () => {
+    expect(canCreateAnotherEvent([])).toBe(true);
+  });
+
+  it('下書き＋開催中が上限未満なら作成できる（終了分は含めない）', () => {
+    expect(
+      canCreateAnotherEvent([ev('draft'), ev('live'), ev('ended'), ev('ended')]),
+    ).toBe(true);
+  });
+
+  it('下書き＋開催中が上限に達したら作成できない', () => {
+    expect(canCreateAnotherEvent([ev('draft'), ev('live'), ev('draft')])).toBe(
+      false,
+    );
+    expect(
+      canCreateAnotherEvent([ev('live'), ev('live'), ev('live'), ev('ended')]),
     ).toBe(false);
   });
 });

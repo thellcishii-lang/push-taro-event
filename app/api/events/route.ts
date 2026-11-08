@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server';
 import { getUidFromRequest } from '@/lib/event-auth';
 import { createEvent, listEventsByOwner } from '@/lib/event-store';
-import { EventResetMode } from '@/lib/event';
+import { EventResetMode, canCreateAnotherEvent } from '@/lib/event';
 import { Locale } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +23,15 @@ export async function POST(request: Request) {
   const uid = await getUidFromRequest(request);
   if (!uid) {
     return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
+  }
+
+  // 同時に仕込めるイベントは3つまで（下書き＋開催中。終了したものは数えない）。
+  const existingEvents = await listEventsByOwner(uid);
+  if (!canCreateAnotherEvent(existingEvents)) {
+    return NextResponse.json(
+      { error: '同時に仕込めるイベントは3つまでです' },
+      { status: 400 },
+    );
   }
 
   let body: Record<string, unknown>;

@@ -51,7 +51,16 @@ export function AdminLanguageSelect({
       aria-label={uiText(locale, 'language')}
       value={locale}
       onChange={(e) => onChange(e.target.value as Locale)}
-      style={{ padding: '6px 8px', fontSize: 14 }}
+      style={{
+        padding: '6px 10px',
+        fontSize: 14,
+        borderRadius: 999,
+        border: '1px solid #cbd5e1',
+        backgroundColor: '#ffffff',
+        color: '#0f172a',
+        fontWeight: 600,
+        cursor: 'pointer',
+      }}
     >
       {SUPPORTED_LOCALES.map((l) => (
         <option key={l} value={l}>
