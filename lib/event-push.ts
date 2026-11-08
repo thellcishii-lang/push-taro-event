@@ -1,8 +1,10 @@
 // lib/event-push.ts
 // Push-taro EVENT のプッシュ配信と課金集計（events/{eventId}/campaigns）。
 //
-// - 配信は FCM トピック `event_{eventId}_users` 宛ての一斉送信。
-//   登録時に来場者をトピック購読させているため、宛先のファンアウトは FCM 側が行う。
+// - 配信は購読者の言語別 FCM トピック `event_{eventId}_users_{locale}` 宛て。
+//   登録時に来場者を自分の言語のトピックへ購読させ、送信時は言語ごとに
+//   その言語の文面（作成時に自動翻訳した titleI18n / bodyI18n）を送る。
+//   宛先のファンアウトは FCM 側が行う。
 // - 課金の根拠は「送信時点の購読者数」。送信のたびに購読者数を数えて
 //   campaign の sentCount に記録する（最終レポートの campaignSends が読む形式）。
 // - 即時配信も予約配信も campaign レコードを介す。予約は15分刻みで、
@@ -14,8 +16,15 @@ import {
   EVENT_SUBCOLLECTIONS,
   jstDateString,
   jstTimeString,
+  localeTopic,
 } from './event';
-import { parseLocalizedTexts, type Locale } from './i18n';
+import { getEvent } from './event-store';
+import {
+  parseLocalizedTexts,
+  pickLocalizedText,
+  SUPPORTED_LOCALES,
+  type Locale,
+} from './i18n';
 import { translateText } from './translate';
 
 export const EVENT_CAMPAIGNS_COLLECTION = 'campaigns';
@@ -167,6 +176,32 @@ export async function cancelCampaign(
   return { ...campaign, status: 'cancelled' };
 }
 
+export interface LocalizedCampaignText {
+  locale: Locale;
+  title: string;
+  body: string;
+}
+
+/**
+ * 送信に使う言語別の文面を組み立てる（純粋関数）。
+ * 言語別マップに無い言語はイベントのデフォルト→日本語へフォールバックし、
+ * それでも無ければ原文を使う（翻訳導入前の campaign でも壊れない）。
+ */
+export function localizedCampaignTexts(
+  campaign: Pick<EventCampaign, 'title' | 'body' | 'titleI18n' | 'bodyI18n'>,
+  eventDefault?: unknown,
+): LocalizedCampaignText[] {
+  return SUPPORTED_LOCALES.map((locale) => ({
+    locale,
+    title:
+      pickLocalizedText(campaign.titleI18n, locale, eventDefault) ||
+      campaign.title,
+    body:
+      pickLocalizedText(campaign.bodyI18n, locale, eventDefault) ||
+      campaign.body,
+  }));
+}
+
 async function countSubscribers(eventId: string): Promise<number> {
   const snap = await db
     .collection('events')
@@ -210,39 +245,59 @@ export async function executeCampaign(
     const targetUrl = new URL(`/e/${eventId}`, baseUrl).toString();
     const iconUrl = new URL('/icon-192x192.png', baseUrl).toString();
 
-    await messaging.send({
-      topic: `event_${eventId}_users`,
-      data: {
-        title: campaign.title,
-        body: campaign.body,
-        icon: iconUrl,
-        url: targetUrl,
-        eventId,
-      },
-      apns: {
-        payload: {
-          aps: {
-            alert: { title: campaign.title, body: campaign.body },
-            sound: 'default',
-            badge: 1,
-            'content-available': 1,
+    // 言語ごとに、その言語の文面をその言語のトピックへ送る。
+    // 一部の言語だけ失敗しても、送れた言語があれば配信自体は成立とする。
+    const event = await getEvent(eventId);
+    const texts = localizedCampaignTexts(campaign, event?.defaultLocale);
+    let delivered = 0;
+    const failures: string[] = [];
+    for (const text of texts) {
+      try {
+        await messaging.send({
+          topic: localeTopic(eventId, text.locale),
+          data: {
+            title: text.title,
+            body: text.body,
+            icon: iconUrl,
+            url: targetUrl,
+            eventId,
           },
-        },
-      },
-      android: {
-        priority: 'high',
-        notification: {
-          title: campaign.title,
-          body: campaign.body,
-          icon: iconUrl,
-          sound: 'default',
-        },
-      },
-      webpush: {
-        headers: { Urgency: 'high' },
-        fcmOptions: { link: targetUrl },
-      },
-    });
+          apns: {
+            payload: {
+              aps: {
+                alert: { title: text.title, body: text.body },
+                sound: 'default',
+                badge: 1,
+                'content-available': 1,
+              },
+            },
+          },
+          android: {
+            priority: 'high',
+            notification: {
+              title: text.title,
+              body: text.body,
+              icon: iconUrl,
+              sound: 'default',
+            },
+          },
+          webpush: {
+            headers: { Urgency: 'high' },
+            fcmOptions: { link: targetUrl },
+          },
+        });
+        delivered++;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        failures.push(`${text.locale}: ${message}`);
+      }
+    }
+    if (delivered === 0) {
+      throw new Error(failures.join('; ') || '送信に失敗しました');
+    }
+    if (failures.length > 0) {
+      console.error('[event-push] 一部の言語で送信に失敗:', failures);
+    }
 
     await ref.update({
       status: 'sent',

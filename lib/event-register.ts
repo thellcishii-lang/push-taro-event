@@ -11,7 +11,7 @@
 import { createHash } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db, messaging } from './firebase-admin';
-import { EVENT_SUBCOLLECTIONS, EventConfig, jstDateString } from './event';
+import { EVENT_SUBCOLLECTIONS, EventConfig, jstDateString, localeTopic } from './event';
 import { normalizeLocale } from './i18n';
 import { getEvent } from './event-store';
 
@@ -113,19 +113,30 @@ export async function registerEventVisitor(
   } else {
     batch.update(memberRef, { lastRegisteredAt: FieldValue.serverTimestamp() });
   }
+  // 言語は個人の選択を優先し、無ければイベントのデフォルト言語で登録する
+  const lang = normalizeLocale(input.lang, event.defaultLocale);
+  const previousLang = alreadyRegistered
+    ? normalizeLocale(subscriberSnap.data()?.lang, event.defaultLocale)
+    : null;
   batch.set(subscriberRef, {
     memberId,
     fcmToken: input.fcmToken,
-    // 言語は個人の選択を優先し、無ければイベントのデフォルト言語で登録する
-    lang: normalizeLocale(input.lang, event.defaultLocale),
+    lang,
     registeredDate: today,
     updatedAt: FieldValue.serverTimestamp(),
   });
   await batch.commit();
 
-  // 一斉配信は FCM トピック宛て（本家と同じ方式）。失敗しても登録自体は成立させる。
+  // 配信は言語別 FCM トピック宛て。失敗しても登録自体は成立させる。
+  // 言語が変わった再登録では、旧言語のトピックから外して付け替える。
   try {
-    await messaging.subscribeToTopic([input.fcmToken], `event_${eventId}_users`);
+    if (previousLang && previousLang !== lang) {
+      await messaging.unsubscribeFromTopic(
+        [input.fcmToken],
+        localeTopic(eventId, previousLang),
+      );
+    }
+    await messaging.subscribeToTopic([input.fcmToken], localeTopic(eventId, lang));
   } catch (error) {
     console.warn('[EVENT] FCMトピック登録をスキップ:', error);
   }
