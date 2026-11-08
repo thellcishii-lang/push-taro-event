@@ -1,11 +1,24 @@
+'use client';
+
 // app/event-admin/[eventId]/AdminNav.tsx
 // 管理画面①②③とイベント設定の間の共通ナビ。
-export function AdminNav({ eventId, current }: { eventId: string; current: string }) {
+import { adminText } from '@/lib/ui-text';
+import type { Locale } from '@/lib/i18n';
+
+export function AdminNav({
+  eventId,
+  current,
+  locale,
+}: {
+  eventId: string;
+  current: string;
+  locale: Locale;
+}) {
   const items = [
-    { key: '①', href: `/event-admin/${eventId}/push`, label: '① プッシュ＋消込' },
-    { key: '②', href: `/event-admin/${eventId}/schedule`, label: '② 予約配信' },
-    { key: '③', href: `/event-admin/${eventId}/coupons`, label: '③ クーポン管理' },
-    { key: '設定', href: '/event-admin', label: 'イベント設定' },
+    { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush') },
+    { key: '②', href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule') },
+    { key: '③', href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons') },
+    { key: '設定', href: '/event-admin', label: adminText(locale, 'navSettings') },
   ];
   return (
     <nav style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8, fontSize: 13 }}>

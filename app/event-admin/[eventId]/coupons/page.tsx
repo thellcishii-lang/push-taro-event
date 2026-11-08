@@ -1,9 +1,10 @@
 'use client';
 
 // app/event-admin/[eventId]/coupons/page.tsx
-// Push-taro EVENT 主催者向けのクーポン管理画面（管理画面③の先行実装）。
-// 出店者（会社）の登録と、クーポンの登録・一覧を行う。クーポンはイベント全体で最大100件。
-// 案内PDFの管理も本来はこの画面に入る（別PRで追加）。
+// Push-taro EVENT 主催者向けのクーポン管理画面（管理画面③）。
+// 出店者（会社）の登録と、クーポンの登録・一覧を行う。クーポンはイベント全体で上限あり。
+// 案内PDFの管理もこの画面で行う。
+// 画面の固定文は4言語辞書（lib/ui-text.ts の ADMIN_TEXT）。
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -13,6 +14,8 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth, storage } from '@/lib/firebase-client';
+import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
+import { adminText, uiText } from '@/lib/ui-text';
 import { AdminNav } from '../AdminNav';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { useDropzone } from 'react-dropzone';
@@ -68,6 +71,7 @@ export default function EventCouponAdminPage() {
   const eventId = params.eventId;
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [locale, setLocale] = useAdminLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [exhibitors, setExhibitors] = useState<Exhibitor[]>([]);
@@ -97,7 +101,7 @@ export default function EventCouponAdminPage() {
 
   const callApi = useCallback(
     async (path: string, init?: RequestInit) => {
-      if (!user) throw new Error('ログインが必要です');
+      if (!user) throw new Error(adminText(locale, 'loginRequired'));
       const idToken = await user.getIdToken();
       const res = await fetch(path, {
         ...init,
@@ -108,10 +112,11 @@ export default function EventCouponAdminPage() {
         },
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? `エラー (${res.status})`);
+      if (!res.ok)
+        throw new Error(data.error ?? adminText(locale, 'apiError', { status: String(res.status) }));
       return data;
     },
-    [user],
+    [user, locale],
   );
 
   const loadAll = useCallback(async () => {
@@ -128,9 +133,9 @@ export default function EventCouponAdminPage() {
       setPdfs(pdfData.pdfs ?? []);
       if (typeof evData.event?.couponCap === 'number') setCouponCap(evData.event.couponCap);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : '読み込みに失敗しました');
+      setMessage(e instanceof Error ? e.message : adminText(locale, 'loadFailed'));
     }
-  }, [user, eventId, callApi]);
+  }, [user, eventId, callApi, locale]);
 
   useEffect(() => {
     if (user) void loadAll();
@@ -142,7 +147,7 @@ export default function EventCouponAdminPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch {
-      setMessage('ログインに失敗しました。メールアドレスとパスワードを確認してください。');
+      setMessage(adminText(locale, 'loginFailed'));
     } finally {
       setBusy(false);
     }
@@ -158,10 +163,10 @@ export default function EventCouponAdminPage() {
       });
       setExhibitorName('');
       setExhibitorEmail('');
-      setMessage('出店者を登録しました');
+      setMessage(adminText(locale, 'exhibitorAdded'));
       await loadAll();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : '出店者の登録に失敗しました');
+      setMessage(e instanceof Error ? e.message : adminText(locale, 'exhibitorAddFailed'));
     } finally {
       setBusy(false);
     }
@@ -184,10 +189,10 @@ export default function EventCouponAdminPage() {
         }),
       });
       setCouponForm({ ...couponForm, title: '', description: '', keywords: '' });
-      setMessage('クーポンを登録しました');
+      setMessage(adminText(locale, 'couponAdded'));
       await loadAll();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'クーポンの登録に失敗しました');
+      setMessage(e instanceof Error ? e.message : adminText(locale, 'couponAddFailed'));
     } finally {
       setBusy(false);
     }
@@ -213,15 +218,15 @@ export default function EventCouponAdminPage() {
           }),
         });
         setPdfTitle('');
-        setMessage('案内PDFを登録しました');
+        setMessage(adminText(locale, 'pdfAdded'));
         await loadAll();
       } catch (e) {
-        setMessage(e instanceof Error ? e.message : 'PDFの登録に失敗しました');
+        setMessage(e instanceof Error ? e.message : adminText(locale, 'pdfAddFailed'));
       } finally {
         setPdfUploading(false);
       }
     },
-    [user, eventId, pdfTitle, callApi, loadAll],
+    [user, eventId, pdfTitle, callApi, loadAll, locale],
   );
 
   const pdfDropzone = useDropzone({
@@ -232,36 +237,39 @@ export default function EventCouponAdminPage() {
   });
 
   const handleDeletePdf = async (pdfId: string) => {
-    if (!window.confirm('このPDFを削除しますか？')) return;
+    if (!window.confirm(adminText(locale, 'confirmDeletePdf'))) return;
     setBusy(true);
     setMessage('');
     try {
       await callApi(`/api/events/${eventId}/info-pdfs/${pdfId}`, { method: 'DELETE' });
-      setMessage('PDFを削除しました');
+      setMessage(adminText(locale, 'pdfDeleted'));
       await loadAll();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : 'PDFの削除に失敗しました');
+      setMessage(e instanceof Error ? e.message : adminText(locale, 'pdfDeleteFailed'));
     } finally {
       setBusy(false);
     }
   };
 
-  if (!authReady) return <main style={containerStyle}>読み込み中…</main>;
+  if (!authReady) return <main style={containerStyle}>{uiText(locale, 'loading')}</main>;
 
   if (!user) {
     return (
       <main style={{ ...containerStyle, maxWidth: 420 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>Push-taro EVENT 管理ログイン</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800 }}>{adminText(locale, 'adminLoginTitle')}</h1>
+          <AdminLanguageSelect locale={locale} onChange={setLocale} />
+        </div>
         <label style={labelStyle}>
-          メールアドレス
+          {adminText(locale, 'emailLabel')}
           <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label style={labelStyle}>
-          パスワード
+          {adminText(locale, 'passwordLabel')}
           <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         <button onClick={handleLogin} disabled={busy} style={{ padding: '10px 20px', fontWeight: 700 }}>
-          ログイン
+          {adminText(locale, 'loginButton')}
         </button>
         {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
       </main>
@@ -271,64 +279,72 @@ export default function EventCouponAdminPage() {
   return (
     <main style={containerStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>クーポン管理</h1>
-        <button onClick={() => void signOut(auth)}>ログアウト</button>
+        <h1 style={{ fontSize: 20, fontWeight: 800 }}>{adminText(locale, 'couponsPageTitle')}</h1>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <AdminLanguageSelect locale={locale} onChange={setLocale} />
+          <button onClick={() => void signOut(auth)}>{adminText(locale, 'logoutButton')}</button>
+        </div>
       </div>
-      <AdminNav eventId={eventId} current="③" />
+      <AdminNav eventId={eventId} current="③" locale={locale} />
 
       <section style={{ marginTop: 20 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>出店者（{exhibitors.length}社）</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700 }}>
+          {adminText(locale, 'exhibitorsTitle', { count: String(exhibitors.length) })}
+        </h2>
         {exhibitors.map((exhibitor) => (
           <div key={exhibitor.id} style={{ fontSize: 14, padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
             {exhibitor.name}
             <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>
-              {exhibitor.authUid ? 'ログイン連携済み' : 'ログイン未連携'}
+              {exhibitor.authUid ? adminText(locale, 'loginLinked') : adminText(locale, 'loginNotLinked')}
             </span>
           </div>
         ))}
         <div style={{ marginTop: 12, border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
           <label style={labelStyle}>
-            出店者名（会社名）
+            {adminText(locale, 'exhibitorNameLabel')}
             <input style={inputStyle} value={exhibitorName} onChange={(e) => setExhibitorName(e.target.value)} />
           </label>
           <label style={labelStyle}>
-            消込ログイン用メールアドレス（任意）
+            {adminText(locale, 'exhibitorEmailLabel')}
             <input style={inputStyle} type="email" value={exhibitorEmail} onChange={(e) => setExhibitorEmail(e.target.value)} />
           </label>
           <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
-            出店者のログイン用アカウント（メール+パスワード）を先に作成しておくと、そのメールアドレスで連携できます。
+            {adminText(locale, 'exhibitorEmailNote')}
           </p>
           <button onClick={handleAddExhibitor} disabled={busy || !exhibitorName.trim()} style={{ padding: '8px 16px', fontWeight: 700 }}>
-            出店者を登録
+            {adminText(locale, 'addExhibitorButton')}
           </button>
         </div>
       </section>
 
       <section style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>クーポン（{coupons.length} / {couponCap}件）</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700 }}>
+          {adminText(locale, 'couponsCountTitle', { count: String(coupons.length), cap: String(couponCap) })}
+        </h2>
         <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-          上限は契約枠のため、変更は運営側で行います。
+          {adminText(locale, 'capNote')}
         </p>
         {coupons.map((coupon) => (
           <article key={coupon.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 8 }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{coupon.title}</div>
             <div style={{ fontSize: 12, color: '#475569' }}>
               {coupon.exhibitorName}
-              {coupon.keywords.length > 0 && `／キーワード: ${coupon.keywords.join('、')}`}
-              {!coupon.active && '／現在無効'}
+              {coupon.keywords.length > 0 &&
+                adminText(locale, 'keywordsSuffix', { keywords: coupon.keywords.join('、') })}
+              {!coupon.active && adminText(locale, 'inactiveSuffix')}
             </div>
             {coupon.description && <p style={{ fontSize: 13, marginTop: 2 }}>{coupon.description}</p>}
           </article>
         ))}
         <div style={{ marginTop: 12, border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
           <label style={labelStyle}>
-            出店者
+            {adminText(locale, 'exhibitorSelectLabel')}
             <select
               style={inputStyle}
               value={couponForm.exhibitorId}
               onChange={(e) => setCouponForm({ ...couponForm, exhibitorId: e.target.value })}
             >
-              <option value="">選択してください</option>
+              <option value="">{adminText(locale, 'selectPlaceholder')}</option>
               {exhibitors.map((exhibitor) => (
                 <option key={exhibitor.id} value={exhibitor.id}>
                   {exhibitor.name}
@@ -337,31 +353,33 @@ export default function EventCouponAdminPage() {
             </select>
           </label>
           <label style={labelStyle}>
-            タイトル
+            {adminText(locale, 'couponTitleLabel')}
             <input style={inputStyle} value={couponForm.title} onChange={(e) => setCouponForm({ ...couponForm, title: e.target.value })} />
           </label>
           <label style={labelStyle}>
-            説明（任意）
+            {adminText(locale, 'couponDescLabel')}
             <input style={inputStyle} value={couponForm.description} onChange={(e) => setCouponForm({ ...couponForm, description: e.target.value })} />
           </label>
           <label style={labelStyle}>
-            検索キーワード（カンマ区切り、任意）
-            <input style={inputStyle} value={couponForm.keywords} onChange={(e) => setCouponForm({ ...couponForm, keywords: e.target.value })} placeholder="例: 飲み物, 無料" />
+            {adminText(locale, 'couponKeywordsLabel')}
+            <input style={inputStyle} value={couponForm.keywords} onChange={(e) => setCouponForm({ ...couponForm, keywords: e.target.value })} placeholder={adminText(locale, 'couponKeywordsPlaceholder')} />
           </label>
           <button
             onClick={handleAddCoupon}
             disabled={busy || !couponForm.exhibitorId || !couponForm.title.trim() || coupons.length >= couponCap}
             style={{ padding: '8px 16px', fontWeight: 700 }}
           >
-            クーポンを登録
+            {adminText(locale, 'addCouponButton')}
           </button>
         </div>
       </section>
 
       <section style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>案内PDF（{pdfs.length} / 5件）</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700 }}>
+          {adminText(locale, 'pdfsTitle', { count: String(pdfs.length) })}
+        </h2>
         <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-          来場者画面にカードとして表示されます（例: 会場案内、タイムスケジュール）。
+          {adminText(locale, 'pdfsNote')}
         </p>
         {pdfs.map((pdf) => (
           <div
@@ -372,13 +390,13 @@ export default function EventCouponAdminPage() {
               {pdf.title}
             </a>
             <button onClick={() => void handleDeletePdf(pdf.id)} disabled={busy}>
-              削除
+              {adminText(locale, 'deleteButton')}
             </button>
           </div>
         ))}
         <label style={{ ...labelStyle, marginTop: 12 }}>
-          表示タイトル（任意。空ならファイル名）
-          <input style={inputStyle} value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder="例: 会場案内" />
+          {adminText(locale, 'pdfTitleLabel')}
+          <input style={inputStyle} value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder={adminText(locale, 'pdfTitlePlaceholder')} />
         </label>
         <div
           {...pdfDropzone.getRootProps()}
@@ -395,10 +413,10 @@ export default function EventCouponAdminPage() {
         >
           <input {...pdfDropzone.getInputProps()} />
           {pdfUploading
-            ? 'アップロード中…'
+            ? adminText(locale, 'pdfUploading')
             : pdfs.length >= 5
-              ? '上限（5件）に達しています'
-              : 'PDFをドラッグ＆ドロップ、またはクリックして選択'}
+              ? adminText(locale, 'pdfCapReached')
+              : adminText(locale, 'pdfDropHint')}
         </div>
       </section>
 

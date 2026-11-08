@@ -3,6 +3,7 @@
 // app/event-admin/[eventId]/schedule/page.tsx
 // Push-taro EVENT 管理画面②：予約配信。
 // 15分刻み（00/15/30/45分）で複数の予約を入れられる。実行は event-tick が担う。
+// 画面の固定文は4言語辞書（lib/ui-text.ts の ADMIN_TEXT）。
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -12,6 +13,8 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase-client';
+import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
+import { adminText, uiText } from '@/lib/ui-text';
 import { AdminNav } from '../AdminNav';
 
 interface Campaign {
@@ -62,6 +65,7 @@ export default function EventScheduleAdminPage() {
   const eventId = params.eventId;
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [locale, setLocale] = useAdminLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [form, setForm] = useState({ title: '', body: '', date: '', time: '10:00' });
@@ -79,7 +83,7 @@ export default function EventScheduleAdminPage() {
 
   const callApi = useCallback(
     async (path: string, init?: RequestInit) => {
-      if (!user) throw new Error('ログインが必要です');
+      if (!user) throw new Error(adminText(locale, 'loginRequired'));
       const idToken = await user.getIdToken();
       const res = await fetch(path, {
         ...init,
@@ -90,10 +94,11 @@ export default function EventScheduleAdminPage() {
         },
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? `エラー (${res.status})`);
+      if (!res.ok)
+        throw new Error(data.error ?? adminText(locale, 'apiError', { status: String(res.status) }));
       return data;
     },
-    [user],
+    [user, locale],
   );
 
   const loadCampaigns = useCallback(async () => {
@@ -102,9 +107,9 @@ export default function EventScheduleAdminPage() {
       const data = await callApi(`/api/events/${eventId}/campaigns`);
       setCampaigns(data.campaigns ?? []);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : '読み込みに失敗しました');
+      setMessage(e instanceof Error ? e.message : adminText(locale, 'loadFailed'));
     }
-  }, [user, eventId, callApi]);
+  }, [user, eventId, callApi, locale]);
 
   useEffect(() => {
     if (user) void loadCampaigns();
@@ -116,7 +121,7 @@ export default function EventScheduleAdminPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch {
-      setMessage('ログインに失敗しました。メールアドレスとパスワードを確認してください。');
+      setMessage(adminText(locale, 'loginFailed'));
     } finally {
       setBusy(false);
     }
@@ -134,47 +139,50 @@ export default function EventScheduleAdminPage() {
           scheduledAt: `${form.date}T${form.time}`,
         }),
       });
-      setMessage(`予約しました: ${form.date} ${form.time}`);
+      setMessage(adminText(locale, 'scheduledMessage', { date: form.date, time: form.time }));
       setForm({ ...form, title: '', body: '' });
       await loadCampaigns();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : '予約に失敗しました');
+      setMessage(e instanceof Error ? e.message : adminText(locale, 'scheduleFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   const handleCancel = async (campaignId: string) => {
-    if (!window.confirm('この予約を取り消しますか？')) return;
+    if (!window.confirm(adminText(locale, 'confirmCancel'))) return;
     setBusy(true);
     setMessage('');
     try {
       await callApi(`/api/events/${eventId}/campaigns/${campaignId}/cancel`, { method: 'POST' });
-      setMessage('予約を取り消しました');
+      setMessage(adminText(locale, 'cancelledMessage'));
       await loadCampaigns();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : '取り消しに失敗しました');
+      setMessage(e instanceof Error ? e.message : adminText(locale, 'cancelFailed'));
     } finally {
       setBusy(false);
     }
   };
 
-  if (!authReady) return <main style={containerStyle}>読み込み中…</main>;
+  if (!authReady) return <main style={containerStyle}>{uiText(locale, 'loading')}</main>;
 
   if (!user) {
     return (
       <main style={{ ...containerStyle, maxWidth: 420 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>Push-taro EVENT 管理ログイン</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800 }}>{adminText(locale, 'adminLoginTitle')}</h1>
+          <AdminLanguageSelect locale={locale} onChange={setLocale} />
+        </div>
         <label style={labelStyle}>
-          メールアドレス
+          {adminText(locale, 'emailLabel')}
           <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label style={labelStyle}>
-          パスワード
+          {adminText(locale, 'passwordLabel')}
           <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         <button onClick={handleLogin} disabled={busy} style={{ padding: '10px 20px', fontWeight: 700 }}>
-          ログイン
+          {adminText(locale, 'loginButton')}
         </button>
         {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
       </main>
@@ -189,27 +197,30 @@ export default function EventScheduleAdminPage() {
   return (
     <main style={containerStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>予約配信</h1>
-        <button onClick={() => void signOut(auth)}>ログアウト</button>
+        <h1 style={{ fontSize: 20, fontWeight: 800 }}>{adminText(locale, 'schedulePageTitle')}</h1>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <AdminLanguageSelect locale={locale} onChange={setLocale} />
+          <button onClick={() => void signOut(auth)}>{adminText(locale, 'logoutButton')}</button>
+        </div>
       </div>
-      <AdminNav eventId={eventId} current="②" />
+      <AdminNav eventId={eventId} current="②" locale={locale} />
 
       <section style={{ marginTop: 20, border: '1px solid #e2e8f0', borderRadius: 8, padding: 16 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>新しい予約</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700 }}>{adminText(locale, 'newScheduleTitle')}</h2>
         <label style={labelStyle}>
-          タイトル
+          {adminText(locale, 'titleLabel')}
           <input style={inputStyle} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
         </label>
         <label style={labelStyle}>
-          本文
+          {adminText(locale, 'bodyLabel')}
           <textarea style={{ ...inputStyle, minHeight: 72 }} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
         </label>
         <label style={labelStyle}>
-          配信日
+          {adminText(locale, 'dateLabel')}
           <input style={inputStyle} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
         </label>
         <label style={labelStyle}>
-          時刻（15分刻み）
+          {adminText(locale, 'timeLabel')}
           <select style={inputStyle} value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })}>
             {TIME_SLOTS.map((slot) => (
               <option key={slot} value={slot}>
@@ -223,15 +234,17 @@ export default function EventScheduleAdminPage() {
           disabled={busy || !form.title.trim() || !form.body.trim() || !form.date}
           style={{ padding: '10px 20px', fontWeight: 700 }}
         >
-          予約する
+          {adminText(locale, 'scheduleButton')}
         </button>
       </section>
 
       {message && <p style={{ marginTop: 14, fontSize: 14 }}>{message}</p>}
 
       <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>予約中（{scheduled.length}件）</h2>
-        {scheduled.length === 0 && <p style={{ fontSize: 13, color: '#64748b' }}>予約はありません。</p>}
+        <h2 style={{ fontSize: 15, fontWeight: 700 }}>
+          {adminText(locale, 'scheduledListTitle', { count: String(scheduled.length) })}
+        </h2>
+        {scheduled.length === 0 && <p style={{ fontSize: 13, color: '#64748b' }}>{adminText(locale, 'noScheduled')}</p>}
         {scheduled.map((campaign) => (
           <article key={campaign.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 8 }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>
@@ -239,23 +252,23 @@ export default function EventScheduleAdminPage() {
             </div>
             <p style={{ fontSize: 13, marginTop: 2 }}>{campaign.body}</p>
             <button onClick={() => void handleCancel(campaign.id)} disabled={busy} style={{ marginTop: 6 }}>
-              取り消す
+              {adminText(locale, 'cancelButton')}
             </button>
           </article>
         ))}
       </section>
 
       <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>予約配信の履歴</h2>
-        {finished.length === 0 && <p style={{ fontSize: 13, color: '#64748b' }}>履歴はありません。</p>}
+        <h2 style={{ fontSize: 15, fontWeight: 700 }}>{adminText(locale, 'scheduleHistoryTitle')}</h2>
+        {finished.length === 0 && <p style={{ fontSize: 13, color: '#64748b' }}>{adminText(locale, 'noScheduleHistory')}</p>}
         {finished.map((campaign) => (
           <article key={campaign.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 8 }}>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{campaign.title}</div>
             <div style={{ fontSize: 12, color: '#475569' }}>
-              予約 {campaign.scheduledAt?.replace('T', ' ')}／
-              {campaign.status === 'sent' && `送信済み 送信数 ${campaign.sentCount ?? 0}`}
-              {campaign.status === 'cancelled' && '取り消し済み'}
-              {campaign.status === 'failed' && `失敗: ${campaign.error ?? ''}`}
+              {adminText(locale, 'historyReservedPrefix', { at: campaign.scheduledAt?.replace('T', ' ') ?? '' })}
+              {campaign.status === 'sent' && adminText(locale, 'histSent', { count: String(campaign.sentCount ?? 0) })}
+              {campaign.status === 'cancelled' && adminText(locale, 'histCancelled')}
+              {campaign.status === 'failed' && adminText(locale, 'historyFailed', { error: campaign.error ?? '' })}
             </div>
           </article>
         ))}
