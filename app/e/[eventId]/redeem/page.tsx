@@ -40,6 +40,8 @@ interface OwnCoupon {
   title: string;
   description: string;
   active: boolean;
+  claimedCount?: number;
+  redeemedCount?: number;
 }
 
 const VIOLET = '#6D28D9';
@@ -355,6 +357,12 @@ export default function ExhibitorRedeemPage() {
         });
         setResult({ ok: true, text: redeemText(locale, 'redeemDone') });
         setManualClaimId('');
+        // 消込したので件数表示を最新化する（失敗しても成功表示はそのまま）
+        try {
+          await loadCoupons();
+        } catch {
+          // 件数の再取得失敗で消込成功の表示は妨げない
+        }
       } catch (e) {
         setResult({
           ok: false,
@@ -364,7 +372,7 @@ export default function ExhibitorRedeemPage() {
         setBusy(false);
       }
     },
-    [callApi, eventId, locale],
+    [callApi, eventId, locale, loadCoupons],
   );
 
   const stopCamera = useCallback(async () => {
@@ -577,6 +585,32 @@ export default function ExhibitorRedeemPage() {
               <div style={{ fontWeight: 700, fontSize: 16 }}>{coupon.title}</div>
               {coupon.description && (
                 <p style={{ fontSize: 14, color: '#475569', margin: '4px 0 0' }}>{coupon.description}</p>
+              )}
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#334155', margin: '8px 0 0' }}>
+                {redeemText(locale, 'claimedCount', { count: String(coupon.claimedCount ?? 0) })}
+                {' ・ '}
+                {redeemText(locale, 'redeemedCount', { count: String(coupon.redeemedCount ?? 0) })}
+              </p>
+              {(coupon.claimedCount ?? 0) > 0 && (
+                <div
+                  aria-hidden="true"
+                  style={{
+                    height: 8,
+                    borderRadius: 999,
+                    backgroundColor: '#e2e8f0',
+                    marginTop: 6,
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${Math.round(((coupon.redeemedCount ?? 0) / (coupon.claimedCount ?? 1)) * 100)}%`,
+                      backgroundColor: VIOLET,
+                      borderRadius: 999,
+                    }}
+                  />
+                </div>
               )}
               {!coupon.active && (
                 <p style={{ fontSize: 13, fontWeight: 700, color: '#b91c1c', margin: '6px 0 0' }}>

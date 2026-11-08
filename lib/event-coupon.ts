@@ -368,6 +368,50 @@ export async function listClaimsByMember(
   return views;
 }
 
+// ─── 件数集計 ───
+
+export interface CouponClaimCounts {
+  claimedCount: number;
+  redeemedCount: number;
+}
+
+/** 取得記録をクーポンごとに集計する純粋関数。
+ * claimedCount は取得総数、redeemedCount はそのうち消込済みの数。 */
+export function tallyClaimsByCoupon(
+  claims: Array<Pick<EventClaim, 'couponId' | 'status'>>,
+): Map<string, CouponClaimCounts> {
+  const tally = new Map<string, CouponClaimCounts>();
+  for (const claim of claims) {
+    const counts = tally.get(claim.couponId) ?? { claimedCount: 0, redeemedCount: 0 };
+    counts.claimedCount += 1;
+    if (claim.status === 'redeemed') counts.redeemedCount += 1;
+    tally.set(claim.couponId, counts);
+  }
+  return tally;
+}
+
+/** 1出店者分の取得・消込件数をクーポンごとに返す（出店者画面の件数表示用）。
+ * claims ドキュメントは exhibitorId を保持するので、その出店者の分だけを
+ * 1クエリで読み、他社の記録には触れない。 */
+export async function countClaimsByExhibitor(
+  eventId: string,
+  exhibitorId: string,
+): Promise<Map<string, CouponClaimCounts>> {
+  const snap = await eventRef(eventId)
+    .collection(EVENT_SUBCOLLECTIONS.claims)
+    .where('exhibitorId', '==', exhibitorId)
+    .get();
+  return tallyClaimsByCoupon(
+    snap.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        couponId: String(data.couponId ?? ''),
+        status: (data.status === 'redeemed' ? 'redeemed' : 'claimed') as EventClaim['status'],
+      };
+    }),
+  );
+}
+
 // ─── 消込 ───
 
 export type RedeemResult =

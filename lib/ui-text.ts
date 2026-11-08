@@ -485,6 +485,18 @@ export const REDEEM_TEXT = {
     zh: '当前无效',
     ko: '현재 비활성',
   },
+  claimedCount: {
+    ja: '取得 {count}件',
+    en: '{count} claimed',
+    zh: '已领取 {count} 张',
+    ko: '획득 {count}건',
+  },
+  redeemedCount: {
+    ja: '消込 {count}件',
+    en: '{count} redeemed',
+    zh: '已核销 {count} 张',
+    ko: '사용 처리 {count}건',
+  },
   loginRequired: {
     ja: 'ログインが必要です',
     en: 'Login is required',
