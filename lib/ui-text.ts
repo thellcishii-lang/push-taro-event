@@ -263,18 +263,195 @@ export const UI_TEXT = {
 
 export type UiTextKey = keyof typeof UI_TEXT;
 
-/** 固定文を言語で引き、{name} 形式の差し込みを置換する。 */
-export function uiText(
+type TextDict = Record<string, Record<Locale, string>>;
+
+function lookup(
+  dict: TextDict,
   locale: Locale,
-  key: UiTextKey,
+  key: string,
   params?: Record<string, string>,
 ): string {
-  const entry = UI_TEXT[key];
-  let text: string = entry[locale] ?? entry[DEFAULT_LOCALE];
+  const entry = dict[key];
+  let text: string = entry?.[locale] ?? entry?.[DEFAULT_LOCALE] ?? key;
   if (params) {
     for (const [name, value] of Object.entries(params)) {
       text = text.replaceAll(`{${name}}`, value);
     }
   }
   return text;
+}
+
+/** 来場者画面の固定文を言語で引く（{name} 形式の差し込み対応）。 */
+export function uiText(
+  locale: Locale,
+  key: UiTextKey,
+  params?: Record<string, string>,
+): string {
+  return lookup(UI_TEXT, locale, key, params);
+}
+
+// ─── 出店者 消込画面 ───
+
+export const REDEEM_TEXT = {
+  redeemLoginTitle: {
+    ja: '出店者 消込ログイン',
+    en: 'Exhibitor redemption login',
+    zh: '参展商核销登录',
+    ko: '출점자 사용 처리 로그인',
+  },
+  emailLabel: {
+    ja: 'メールアドレス',
+    en: 'Email address',
+    zh: '电子邮箱',
+    ko: '이메일 주소',
+  },
+  passwordLabel: {
+    ja: 'パスワード',
+    en: 'Password',
+    zh: '密码',
+    ko: '비밀번호',
+  },
+  loginButton: {
+    ja: 'ログイン',
+    en: 'Log in',
+    zh: '登录',
+    ko: '로그인',
+  },
+  loginFailed: {
+    ja: 'ログインに失敗しました。メールアドレスとパスワードを確認してください。',
+    en: 'Login failed. Please check your email address and password.',
+    zh: '登录失败。请确认电子邮箱和密码。',
+    ko: '로그인에 실패했습니다. 이메일 주소와 비밀번호를 확인해 주세요.',
+  },
+  redeemTitle: {
+    ja: 'クーポン消込',
+    en: 'Coupon redemption',
+    zh: '优惠券核销',
+    ko: '쿠폰 사용 처리',
+  },
+  logoutButton: {
+    ja: 'ログアウト',
+    en: 'Log out',
+    zh: '退出登录',
+    ko: '로그아웃',
+  },
+  exhibitorLoadFailed: {
+    ja: '出店者情報の取得に失敗しました',
+    en: 'Failed to load exhibitor information',
+    zh: '获取参展商信息失败',
+    ko: '출점자 정보를 가져오지 못했습니다',
+  },
+  exhibitorErrorNote: {
+    ja: '。主催者にアカウントの登録状況を確認してください。',
+    en: '. Please ask the organizer to check your account registration.',
+    zh: '。请向主办方确认您的账户注册状态。',
+    ko: '. 주최자에게 계정 등록 상태를 확인해 주세요.',
+  },
+  exhibitorLine: {
+    ja: '出店者: {name}（自社のクーポンのみ消込できます）',
+    en: 'Exhibitor: {name} (you can redeem only your own coupons)',
+    zh: '参展商：{name}（只能核销本公司的优惠券）',
+    ko: '출점자: {name}(자사 쿠폰만 사용 처리할 수 있습니다)',
+  },
+  cameraStart: {
+    ja: 'カメラでQRコードを読み取る',
+    en: 'Scan QR code with camera',
+    zh: '用相机扫描二维码',
+    ko: '카메라로 QR 코드 읽기',
+  },
+  cameraStop: {
+    ja: 'カメラを止める',
+    en: 'Stop camera',
+    zh: '停止相机',
+    ko: '카메라 중지',
+  },
+  cameraDenied: {
+    ja: 'カメラの使用が許可されていません。ブラウザの設定からカメラ利用を許可してください。',
+    en: 'Camera use is not allowed. Please allow camera access in your browser settings.',
+    zh: '未获得相机使用许可。请在浏览器设置中允许使用相机。',
+    ko: '카메라 사용이 허용되지 않았습니다. 브라우저 설정에서 카메라 사용을 허용해 주세요.',
+  },
+  cameraNotFound: {
+    ja: 'カメラが見つかりません。カメラ付きの端末でお試しください。',
+    en: 'No camera found. Please use a device with a camera.',
+    zh: '未找到相机。请使用带相机的设备。',
+    ko: '카메라를 찾을 수 없습니다. 카메라가 있는 기기에서 시도해 주세요.',
+  },
+  cameraFailed: {
+    ja: 'カメラの起動に失敗しました。コードを手入力してください。',
+    en: 'Failed to start the camera. Please enter the code manually.',
+    zh: '相机启动失败。请手动输入代码。',
+    ko: '카메라를 시작하지 못했습니다. 코드를 직접 입력해 주세요.',
+  },
+  manualLabel: {
+    ja: 'コードを手入力する場合',
+    en: 'Or enter the code manually',
+    zh: '手动输入代码',
+    ko: '코드를 직접 입력하는 경우',
+  },
+  claimCodePlaceholder: {
+    ja: '取得コード',
+    en: 'Claim code',
+    zh: '领取代码',
+    ko: '취득 코드',
+  },
+  redeemButton: {
+    ja: '消し込む',
+    en: 'Redeem',
+    zh: '核销',
+    ko: '사용 처리',
+  },
+  redeemDone: {
+    ja: '消込が完了しました。',
+    en: 'Redemption complete.',
+    zh: '核销完成。',
+    ko: '사용 처리가 완료되었습니다.',
+  },
+  redeemFailed: {
+    ja: '消込に失敗しました。',
+    en: 'Redemption failed.',
+    zh: '核销失败。',
+    ko: '사용 처리에 실패했습니다.',
+  },
+  ownCouponsTitle: {
+    ja: '自社のクーポン',
+    en: 'Your coupons',
+    zh: '本公司的优惠券',
+    ko: '자사 쿠폰',
+  },
+  noOwnCoupons: {
+    ja: '登録されているクーポンがありません。',
+    en: 'No coupons registered.',
+    zh: '没有已登记的优惠券。',
+    ko: '등록된 쿠폰이 없습니다.',
+  },
+  couponInactive: {
+    ja: '現在無効',
+    en: 'Currently inactive',
+    zh: '当前无效',
+    ko: '현재 비활성',
+  },
+  loginRequired: {
+    ja: 'ログインが必要です',
+    en: 'Login is required',
+    zh: '需要登录',
+    ko: '로그인이 필요합니다',
+  },
+  apiError: {
+    ja: 'エラー ({status})',
+    en: 'Error ({status})',
+    zh: '错误（{status}）',
+    ko: '오류({status})',
+  },
+} as const satisfies Record<string, Record<Locale, string>>;
+
+export type RedeemTextKey = keyof typeof REDEEM_TEXT;
+
+/** 出店者 消込画面の固定文を言語で引く。 */
+export function redeemText(
+  locale: Locale,
+  key: RedeemTextKey,
+  params?: Record<string, string>,
+): string {
+  return lookup(REDEEM_TEXT, locale, key, params);
 }

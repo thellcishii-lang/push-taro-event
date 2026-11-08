@@ -6,6 +6,8 @@
 // 他社のクーポンかどうかはサーバー側（消込API）が判定するので、
 // ここで他社のQRを読んでも 403 で弾かれる。
 // カメラ読み取りの作法は本家の店舗画面（app/shop）に合わせている。
+// 画面の固定文は4言語辞書（lib/ui-text.ts）。出店者の言語は
+// 出店者レコードに保存され、次回ログイン時も引き継がれる。
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -16,11 +18,19 @@ import {
 } from 'firebase/auth';
 import { Html5Qrcode } from 'html5-qrcode';
 import { auth } from '@/lib/firebase-client';
+import {
+  LOCALE_LABELS,
+  SUPPORTED_LOCALES,
+  normalizeLocale,
+  type Locale,
+} from '@/lib/i18n';
+import { redeemText, uiText } from '@/lib/ui-text';
 import PasswordInput from '@/components/PasswordInput';
 
 interface Exhibitor {
   id: string;
   name: string;
+  lang: string;
 }
 
 interface OwnCoupon {
@@ -52,6 +62,7 @@ export default function ExhibitorRedeemPage() {
   const eventId = params.eventId;
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [locale, setLocale] = useState<Locale>('ja');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [exhibitor, setExhibitor] = useState<Exhibitor | null>(null);
@@ -64,6 +75,15 @@ export default function ExhibitorRedeemPage() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(`event-locale:${eventId}`);
+      if (stored) setLocale(normalizeLocale(stored));
+    } catch {
+      // 保存が読めなくても日本語で続行する
+    }
+  }, [eventId]);
+
+  useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setAuthReady(true);
@@ -73,7 +93,7 @@ export default function ExhibitorRedeemPage() {
 
   const callApi = useCallback(
     async (path: string, init?: RequestInit) => {
-      if (!user) throw new Error('ログインが必要です');
+      if (!user) throw new Error(redeemText(locale, 'loginRequired'));
       const idToken = await user.getIdToken();
       const res = await fetch(path, {
         ...init,
@@ -84,11 +104,17 @@ export default function ExhibitorRedeemPage() {
         },
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error ?? `エラー (${res.status})`);
+      if (!res.ok)
+        throw new Error(data.error ?? redeemText(locale, 'apiError', { status: String(res.status) }));
       return data;
     },
-    [user],
+    [user, locale],
   );
+
+  const loadCoupons = useCallback(async () => {
+    const data = await callApi(`/api/events/${eventId}/exhibitor-coupons`);
+    setCoupons(data.coupons ?? []);
+  }, [callApi, eventId]);
 
   useEffect(() => {
     if (!user) return;
@@ -96,24 +122,62 @@ export default function ExhibitorRedeemPage() {
       try {
         const me = await callApi(`/api/events/${eventId}/exhibitor-me`);
         setExhibitor(me.exhibitor);
+        // 出店者レコードの言語（個人の選択）が画面の初期言語になる
+        if (me.exhibitor?.lang) setLocale(normalizeLocale(me.exhibitor.lang));
         setExhibitorError('');
-        const data = await callApi(`/api/events/${eventId}/exhibitor-coupons`);
-        setCoupons(data.coupons ?? []);
+        await loadCoupons();
       } catch (e) {
         setExhibitor(null);
         setExhibitorError(
-          e instanceof Error ? e.message : '出店者情報の取得に失敗しました',
+          e instanceof Error ? e.message : redeemText(locale, 'exhibitorLoadFailed'),
         );
       }
     })();
+    // locale は初期言語の確定にだけ使い、変更時の再取得は handleLocaleChange 側で行う
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, eventId, callApi]);
+
+  const handleLocaleChange = async (next: Locale) => {
+    setLocale(next);
+    try {
+      window.localStorage.setItem(`event-locale:${eventId}`, next);
+    } catch {
+      // 保存できなくても画面の切替は有効にする
+    }
+    if (user && exhibitor) {
+      try {
+        await callApi(`/api/events/${eventId}/exhibitor-me`, {
+          method: 'PATCH',
+          body: JSON.stringify({ lang: next }),
+        });
+        await loadCoupons();
+      } catch {
+        // 保存に失敗しても画面の切替は止めない
+      }
+    }
+  };
+
+  const languageSelect = (
+    <select
+      aria-label={uiText(locale, 'language')}
+      value={locale}
+      onChange={(e) => void handleLocaleChange(e.target.value as Locale)}
+      style={{ padding: '6px 8px', fontSize: 14 }}
+    >
+      {SUPPORTED_LOCALES.map((l) => (
+        <option key={l} value={l}>
+          {LOCALE_LABELS[l]}
+        </option>
+      ))}
+    </select>
+  );
 
   const handleLogin = async () => {
     setBusy(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch {
-      setResult({ ok: false, text: 'ログインに失敗しました。メールアドレスとパスワードを確認してください。' });
+      setResult({ ok: false, text: redeemText(locale, 'loginFailed') });
     } finally {
       setBusy(false);
     }
@@ -130,18 +194,18 @@ export default function ExhibitorRedeemPage() {
           method: 'POST',
           body: JSON.stringify({ claimId: trimmed }),
         });
-        setResult({ ok: true, text: '消込が完了しました。' });
+        setResult({ ok: true, text: redeemText(locale, 'redeemDone') });
         setManualClaimId('');
       } catch (e) {
         setResult({
           ok: false,
-          text: e instanceof Error ? e.message : '消込に失敗しました。',
+          text: e instanceof Error ? e.message : redeemText(locale, 'redeemFailed'),
         });
       } finally {
         setBusy(false);
       }
     },
-    [callApi, eventId],
+    [callApi, eventId, locale],
   );
 
   const stopCamera = useCallback(async () => {
@@ -177,11 +241,11 @@ export default function ExhibitorRedeemPage() {
       setScanning(false);
       const err = error as { name?: string; message?: string };
       if (err?.name === 'NotAllowedError' || (err?.message ?? '').includes('Permission')) {
-        setResult({ ok: false, text: 'カメラの使用が許可されていません。ブラウザの設定からカメラ利用を許可してください。' });
+        setResult({ ok: false, text: redeemText(locale, 'cameraDenied') });
       } else if (err?.name === 'NotFoundError') {
-        setResult({ ok: false, text: 'カメラが見つかりません。カメラ付きの端末でお試しください。' });
+        setResult({ ok: false, text: redeemText(locale, 'cameraNotFound') });
       } else {
-        setResult({ ok: false, text: 'カメラの起動に失敗しました。コードを手入力してください。' });
+        setResult({ ok: false, text: redeemText(locale, 'cameraFailed') });
       }
     }
   };
@@ -192,22 +256,25 @@ export default function ExhibitorRedeemPage() {
     };
   }, [stopCamera]);
 
-  if (!authReady) return <main style={containerStyle}>読み込み中…</main>;
+  if (!authReady) return <main style={containerStyle}>{uiText(locale, 'loading')}</main>;
 
   if (!user) {
     return (
       <main style={containerStyle}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>出店者 消込ログイン</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800 }}>{redeemText(locale, 'redeemLoginTitle')}</h1>
+          {languageSelect}
+        </div>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 16 }}>
-          メールアドレス
+          {redeemText(locale, 'emailLabel')}
           <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 12 }}>
-          パスワード
+          {redeemText(locale, 'passwordLabel')}
           <PasswordInput style={inputStyle} value={password} onChange={setPassword} autoComplete="current-password" />
         </label>
         <button onClick={handleLogin} disabled={busy} style={{ width: '100%', padding: '12px 20px', fontWeight: 700, marginTop: 16 }}>
-          ログイン
+          {redeemText(locale, 'loginButton')}
         </button>
         {result && <p style={{ marginTop: 12, fontSize: 14, color: '#b91c1c' }}>{result.text}</p>}
       </main>
@@ -217,41 +284,45 @@ export default function ExhibitorRedeemPage() {
   return (
     <main style={containerStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>クーポン消込</h1>
-        <button onClick={() => void signOut(auth)}>ログアウト</button>
+        <h1 style={{ fontSize: 20, fontWeight: 800 }}>{redeemText(locale, 'redeemTitle')}</h1>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {languageSelect}
+          <button onClick={() => void signOut(auth)}>{redeemText(locale, 'logoutButton')}</button>
+        </div>
       </div>
 
       {exhibitorError && (
         <p style={{ marginTop: 16, fontSize: 14, color: '#b91c1c' }}>
-          {exhibitorError}。主催者にアカウントの登録状況を確認してください。
+          {exhibitorError}
+          {redeemText(locale, 'exhibitorErrorNote')}
         </p>
       )}
 
       {exhibitor && (
         <>
           <p style={{ fontSize: 14, marginTop: 8 }}>
-            出店者: <strong>{exhibitor.name}</strong>（自社のクーポンのみ消込できます）
+            {redeemText(locale, 'exhibitorLine', { name: exhibitor.name })}
           </p>
 
           <div id="qr-reader" style={{ width: '100%', marginTop: 16 }} />
           {!scanning ? (
             <button onClick={startCamera} disabled={busy} style={{ width: '100%', padding: '12px 20px', fontWeight: 700, marginTop: 8 }}>
-              カメラでQRコードを読み取る
+              {redeemText(locale, 'cameraStart')}
             </button>
           ) : (
             <button onClick={() => void stopCamera()} style={{ width: '100%', padding: '12px 20px', fontWeight: 700, marginTop: 8 }}>
-              カメラを止める
+              {redeemText(locale, 'cameraStop')}
             </button>
           )}
 
           <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 20 }}>
-            コードを手入力する場合
+            {redeemText(locale, 'manualLabel')}
             <input
               style={inputStyle}
               type="text"
               value={manualClaimId}
               onChange={(e) => setManualClaimId(e.target.value)}
-              placeholder="取得コード"
+              placeholder={redeemText(locale, 'claimCodePlaceholder')}
             />
           </label>
           <button
@@ -259,7 +330,7 @@ export default function ExhibitorRedeemPage() {
             disabled={busy || !manualClaimId.trim()}
             style={{ width: '100%', padding: '12px 20px', fontWeight: 700, marginTop: 10 }}
           >
-            消し込む
+            {redeemText(locale, 'redeemButton')}
           </button>
 
           {result && (
@@ -268,15 +339,15 @@ export default function ExhibitorRedeemPage() {
             </p>
           )}
 
-          <h2 style={{ fontSize: 15, fontWeight: 700, marginTop: 28 }}>自社のクーポン</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, marginTop: 28 }}>{redeemText(locale, 'ownCouponsTitle')}</h2>
           {coupons.length === 0 && (
-            <p style={{ fontSize: 13, color: '#64748b' }}>登録されているクーポンがありません。</p>
+            <p style={{ fontSize: 13, color: '#64748b' }}>{redeemText(locale, 'noOwnCoupons')}</p>
           )}
           {coupons.map((coupon) => (
             <article key={coupon.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 14 }}>{coupon.title}</div>
               {coupon.description && <p style={{ fontSize: 13, marginTop: 2 }}>{coupon.description}</p>}
-              {!coupon.active && <p style={{ fontSize: 12, color: '#b91c1c' }}>現在無効</p>}
+              {!coupon.active && <p style={{ fontSize: 12, color: '#b91c1c' }}>{redeemText(locale, 'couponInactive')}</p>}
             </article>
           ))}
         </>

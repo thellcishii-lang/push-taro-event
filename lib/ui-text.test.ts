@@ -1,16 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import { SUPPORTED_LOCALES } from './i18n';
-import { UI_TEXT, uiText, type UiTextKey } from './ui-text';
+import {
+  REDEEM_TEXT,
+  UI_TEXT,
+  redeemText,
+  uiText,
+  type UiTextKey,
+} from './ui-text';
 
-describe('UI_TEXT', () => {
+describe('UI_TEXT / REDEEM_TEXT', () => {
   it('全キーに4言語すべての文が入っている', () => {
-    for (const [key, entry] of Object.entries(UI_TEXT)) {
-      for (const locale of SUPPORTED_LOCALES) {
-        const text = (entry as Record<string, string>)[locale];
-        expect(typeof text, `${key}.${locale}`).toBe('string');
-        expect(text.trim().length, `${key}.${locale}`).toBeGreaterThan(0);
+    for (const dict of [UI_TEXT, REDEEM_TEXT]) {
+      for (const [key, entry] of Object.entries(dict)) {
+        for (const locale of SUPPORTED_LOCALES) {
+          const text = (entry as Record<string, string>)[locale];
+          expect(typeof text, `${key}.${locale}`).toBe('string');
+          expect(text.trim().length, `${key}.${locale}`).toBeGreaterThan(0);
+        }
       }
     }
+  });
+});
+
+describe('redeemText', () => {
+  it('指定言語の文と差し込みが効く', () => {
+    expect(redeemText('ko', 'loginButton')).toBe('로그인');
+    expect(redeemText('en', 'exhibitorLine', { name: 'Acme' })).toContain('Acme');
   });
 });
 
