@@ -42,21 +42,50 @@ interface InfoPdf {
   url: string;
 }
 
+const VIOLET = '#6D28D9';
+const VIOLET_BRIGHT = '#7C3AED';
+
 const containerStyle: React.CSSProperties = {
-  padding: 24,
+  padding: '20px 16px 40px',
   maxWidth: 880,
   margin: '0 auto',
   fontFamily: 'sans-serif',
+  backgroundColor: '#f8fafc',
+  minHeight: '100vh',
+  boxSizing: 'border-box',
+  color: '#0f172a',
+};
+
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 12,
+  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
+};
+
+const headerStyle: React.CSSProperties = {
+  background: `linear-gradient(135deg, ${VIOLET_BRIGHT}, ${VIOLET})`,
+  borderRadius: 16,
+  padding: '16px 20px',
+  color: '#ffffff',
+  boxShadow: '0 4px 14px rgba(109, 40, 217, 0.35)',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: 12,
 };
 
 const inputStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
-  padding: '8px 10px',
-  marginTop: 4,
+  padding: '10px 12px',
+  marginTop: 6,
   border: '1px solid #cbd5e1',
-  borderRadius: 6,
+  borderRadius: 10,
   fontSize: 14,
+  backgroundColor: '#ffffff',
+  boxSizing: 'border-box',
 };
 
 const labelStyle: React.CSSProperties = {
@@ -65,6 +94,53 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 600,
   marginBottom: 12,
 };
+
+const primaryButtonStyle: React.CSSProperties = {
+  padding: '10px 20px',
+  fontWeight: 700,
+  fontSize: 14,
+  backgroundColor: VIOLET,
+  color: '#ffffff',
+  border: 'none',
+  borderRadius: 10,
+  cursor: 'pointer',
+};
+
+const logoutButtonStyle: React.CSSProperties = {
+  padding: '7px 14px',
+  fontSize: 14,
+  fontWeight: 600,
+  borderRadius: 999,
+  border: '1px solid rgba(255, 255, 255, 0.5)',
+  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  color: '#ffffff',
+  cursor: 'pointer',
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  padding: '6px 14px',
+  fontSize: 13,
+  fontWeight: 600,
+  borderRadius: 999,
+  border: '1px solid #fca5a5',
+  backgroundColor: '#ffffff',
+  color: '#b91c1c',
+  cursor: 'pointer',
+};
+
+function linkBadgeStyle(linked: boolean): React.CSSProperties {
+  return {
+    display: 'inline-block',
+    padding: '2px 10px',
+    fontSize: 12,
+    fontWeight: 700,
+    borderRadius: 999,
+    whiteSpace: 'nowrap',
+    ...(linked
+      ? { backgroundColor: '#dcfce7', color: '#15803d' }
+      : { backgroundColor: '#e2e8f0', color: '#475569' }),
+  };
+}
 
 export default function EventCouponAdminPage() {
   const params = useParams<{ eventId: string }>();
@@ -255,51 +331,70 @@ export default function EventCouponAdminPage() {
 
   if (!user) {
     return (
-      <main style={{ ...containerStyle, maxWidth: 420 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ fontSize: 20, fontWeight: 800 }}>{adminText(locale, 'adminLoginTitle')}</h1>
+      <main style={{ ...containerStyle, maxWidth: 480 }}>
+        <header style={headerStyle}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{adminText(locale, 'adminLoginTitle')}</h1>
           <AdminLanguageSelect locale={locale} onChange={setLocale} />
-        </div>
-        <label style={labelStyle}>
-          {adminText(locale, 'emailLabel')}
-          <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <label style={labelStyle}>
-          {adminText(locale, 'passwordLabel')}
-          <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <button onClick={handleLogin} disabled={busy} style={{ padding: '10px 20px', fontWeight: 700 }}>
-          {adminText(locale, 'loginButton')}
-        </button>
-        {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
+        </header>
+        <section style={{ ...cardStyle, padding: 20, marginTop: 16 }}>
+          <label style={labelStyle}>
+            {adminText(locale, 'emailLabel')}
+            <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label style={labelStyle}>
+            {adminText(locale, 'passwordLabel')}
+            <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <button onClick={handleLogin} disabled={busy} style={{ ...primaryButtonStyle, width: '100%' }}>
+            {adminText(locale, 'loginButton')}
+          </button>
+          {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
+        </section>
       </main>
     );
   }
 
   return (
     <main style={containerStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>{adminText(locale, 'couponsPageTitle')}</h1>
+      <header style={headerStyle}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{adminText(locale, 'couponsPageTitle')}</h1>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <AdminLanguageSelect locale={locale} onChange={setLocale} />
-          <button onClick={() => void signOut(auth)}>{adminText(locale, 'logoutButton')}</button>
+          <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
+            {adminText(locale, 'logoutButton')}
+          </button>
         </div>
-      </div>
+      </header>
       <AdminNav eventId={eventId} current="③" locale={locale} />
 
       <section style={{ marginTop: 20 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
           {adminText(locale, 'exhibitorsTitle', { count: String(exhibitors.length) })}
         </h2>
-        {exhibitors.map((exhibitor) => (
-          <div key={exhibitor.id} style={{ fontSize: 14, padding: '6px 0', borderBottom: '1px solid #f1f5f9' }}>
-            {exhibitor.name}
-            <span style={{ fontSize: 12, color: '#64748b', marginLeft: 8 }}>
-              {exhibitor.authUid ? adminText(locale, 'loginLinked') : adminText(locale, 'loginNotLinked')}
-            </span>
+        {exhibitors.length > 0 && (
+          <div style={{ ...cardStyle, padding: '4px 16px', marginTop: 10 }}>
+            {exhibitors.map((exhibitor, i) => (
+              <div
+                key={exhibitor.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontSize: 14,
+                  padding: '10px 0',
+                  borderBottom: i < exhibitors.length - 1 ? '1px solid #f1f5f9' : 'none',
+                }}
+              >
+                <span style={{ fontWeight: 600 }}>{exhibitor.name}</span>
+                <span style={linkBadgeStyle(!!exhibitor.authUid)}>
+                  {exhibitor.authUid ? adminText(locale, 'loginLinked') : adminText(locale, 'loginNotLinked')}
+                </span>
+              </div>
+            ))}
           </div>
-        ))}
-        <div style={{ marginTop: 12, border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
+        )}
+        <div style={{ ...cardStyle, marginTop: 12, padding: 20 }}>
           <label style={labelStyle}>
             {adminText(locale, 'exhibitorNameLabel')}
             <input style={inputStyle} value={exhibitorName} onChange={(e) => setExhibitorName(e.target.value)} />
@@ -311,32 +406,49 @@ export default function EventCouponAdminPage() {
           <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
             {adminText(locale, 'exhibitorEmailNote')}
           </p>
-          <button onClick={handleAddExhibitor} disabled={busy || !exhibitorName.trim()} style={{ padding: '8px 16px', fontWeight: 700 }}>
+          <button onClick={handleAddExhibitor} disabled={busy || !exhibitorName.trim()} style={primaryButtonStyle}>
             {adminText(locale, 'addExhibitorButton')}
           </button>
         </div>
       </section>
 
       <section style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
           {adminText(locale, 'couponsCountTitle', { count: String(coupons.length), cap: String(couponCap) })}
         </h2>
         <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
           {adminText(locale, 'capNote')}
         </p>
         {coupons.map((coupon) => (
-          <article key={coupon.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 8 }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>{coupon.title}</div>
-            <div style={{ fontSize: 12, color: '#475569' }}>
+          <article key={coupon.id} style={{ ...cardStyle, padding: 16, marginTop: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{coupon.title}</div>
+              {!coupon.active && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '2px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    borderRadius: 999,
+                    backgroundColor: '#e2e8f0',
+                    color: '#475569',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {adminText(locale, 'badgeInactive')}
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
               {coupon.exhibitorName}
               {coupon.keywords.length > 0 &&
                 adminText(locale, 'keywordsSuffix', { keywords: coupon.keywords.join('、') })}
-              {!coupon.active && adminText(locale, 'inactiveSuffix')}
             </div>
             {coupon.description && <p style={{ fontSize: 13, marginTop: 2 }}>{coupon.description}</p>}
           </article>
         ))}
-        <div style={{ marginTop: 12, border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>
+        <div style={{ ...cardStyle, marginTop: 12, padding: 20 }}>
           <label style={labelStyle}>
             {adminText(locale, 'exhibitorSelectLabel')}
             <select
@@ -367,7 +479,7 @@ export default function EventCouponAdminPage() {
           <button
             onClick={handleAddCoupon}
             disabled={busy || !couponForm.exhibitorId || !couponForm.title.trim() || coupons.length >= couponCap}
-            style={{ padding: '8px 16px', fontWeight: 700 }}
+            style={primaryButtonStyle}
           >
             {adminText(locale, 'addCouponButton')}
           </button>
@@ -375,7 +487,7 @@ export default function EventCouponAdminPage() {
       </section>
 
       <section style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
           {adminText(locale, 'pdfsTitle', { count: String(pdfs.length) })}
         </h2>
         <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
@@ -384,39 +496,43 @@ export default function EventCouponAdminPage() {
         {pdfs.map((pdf) => (
           <div
             key={pdf.id}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 8 }}
+            style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', marginTop: 10 }}
           >
-            <a href={pdf.url} target="_blank" rel="noreferrer" style={{ fontSize: 14, fontWeight: 600 }}>
+            <a href={pdf.url} target="_blank" rel="noreferrer" style={{ fontSize: 14, fontWeight: 600, color: VIOLET }}>
               {pdf.title}
             </a>
-            <button onClick={() => void handleDeletePdf(pdf.id)} disabled={busy}>
+            <button onClick={() => void handleDeletePdf(pdf.id)} disabled={busy} style={dangerButtonStyle}>
               {adminText(locale, 'deleteButton')}
             </button>
           </div>
         ))}
-        <label style={{ ...labelStyle, marginTop: 12 }}>
-          {adminText(locale, 'pdfTitleLabel')}
-          <input style={inputStyle} value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder={adminText(locale, 'pdfTitlePlaceholder')} />
-        </label>
-        <div
-          {...pdfDropzone.getRootProps()}
-          style={{
-            border: '2px dashed #cbd5e1',
-            borderRadius: 8,
-            padding: 24,
-            textAlign: 'center',
-            fontSize: 14,
-            color: '#475569',
-            cursor: pdfs.length >= 5 ? 'not-allowed' : 'pointer',
-            opacity: pdfs.length >= 5 ? 0.5 : 1,
-          }}
-        >
-          <input {...pdfDropzone.getInputProps()} />
-          {pdfUploading
-            ? adminText(locale, 'pdfUploading')
-            : pdfs.length >= 5
-              ? adminText(locale, 'pdfCapReached')
-              : adminText(locale, 'pdfDropHint')}
+        <div style={{ ...cardStyle, marginTop: 12, padding: 20 }}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>
+            {adminText(locale, 'pdfTitleLabel')}
+            <input style={inputStyle} value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder={adminText(locale, 'pdfTitlePlaceholder')} />
+          </label>
+          <div
+            {...pdfDropzone.getRootProps()}
+            style={{
+              border: `2px dashed ${pdfDropzone.isDragActive ? '#6D28D9' : '#c4b5fd'}`,
+              backgroundColor: pdfDropzone.isDragActive ? '#f5f3ff' : '#ffffff',
+              borderRadius: 12,
+              padding: 24,
+              marginTop: 12,
+              textAlign: 'center',
+              fontSize: 14,
+              color: '#475569',
+              cursor: pdfs.length >= 5 ? 'not-allowed' : 'pointer',
+              opacity: pdfs.length >= 5 ? 0.5 : 1,
+            }}
+          >
+            <input {...pdfDropzone.getInputProps()} />
+            {pdfUploading
+              ? adminText(locale, 'pdfUploading')
+              : pdfs.length >= 5
+                ? adminText(locale, 'pdfCapReached')
+                : adminText(locale, 'pdfDropHint')}
+          </div>
         </div>
       </section>
 

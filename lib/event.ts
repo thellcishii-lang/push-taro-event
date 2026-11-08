@@ -71,6 +71,12 @@ export type EventSubcollection =
 
 export const DEFAULT_SUBSCRIBER_CAP = 50_000;
 export const MAX_COUPONS_PER_EVENT = 100;
+/**
+ * 1主催者が同時に仕込めるイベント数の上限（下書き＋開催中）。
+ * 会場日程が重なる運用（例: 月-水／水-金／週末）を想定した製品ルール。
+ * 終了したイベントは数えない。
+ */
+export const MAX_CONCURRENT_EVENTS = 3;
 export const MAX_INFO_PDFS = 5;
 export const DEFAULT_RESET_TIME = '00:00';
 export const DEFAULT_BACKUP_RETENTION_DAYS = 30;
@@ -132,6 +138,27 @@ export function isResetDue(
   if (today < event.startDate || today > event.endDate) return false;
   if (event.lastResetDate === today) return false;
   return jstTimeString(now) >= event.resetTime;
+}
+
+/** 同時イベント上限のカウント対象かどうか（終了したイベントは数えない）。 */
+export function countsTowardConcurrentCap(
+  event: Pick<EventConfig, 'status'>,
+): boolean {
+  return event.status !== 'ended';
+}
+
+/** 主催者が現在仕込んでいるイベント数（下書き＋開催中）。 */
+export function countConcurrentEvents(
+  events: Pick<EventConfig, 'status'>[],
+): number {
+  return events.filter(countsTowardConcurrentCap).length;
+}
+
+/** 新しいイベントをもう1つ仕込めるかどうか（同時上限 MAX_CONCURRENT_EVENTS 未満）。 */
+export function canCreateAnotherEvent(
+  events: Pick<EventConfig, 'status'>[],
+): boolean {
+  return countConcurrentEvents(events) < MAX_CONCURRENT_EVENTS;
 }
 
 /**

@@ -663,6 +663,42 @@ export const ADMIN_TEXT = {
     zh: '＋ 新建活动',
     ko: '＋ 새 이벤트',
   },
+  concurrentCapNote: {
+    ja: '同時に仕込めるイベントは{cap}つまでです（現在{active}つ）',
+    en: 'You can set up to {cap} events at a time ({active} so far)',
+    zh: '同时最多可创建{cap}个活动（当前{active}个）',
+    ko: '동시에 준비할 수 있는 이벤트는 최대 {cap}개입니다(현재 {active}개)',
+  },
+  concurrentCapReached: {
+    ja: '同時に仕込めるイベントの上限（{cap}つ）に達しています。新しいイベントを作るには、先にいずれかのイベントを終了してください。',
+    en: 'You have reached the limit of {cap} events set up at once. End one of your events to create a new one.',
+    zh: '已达到同时创建活动的上限（{cap}个）。如需新建活动，请先结束其中一个活动。',
+    ko: '동시에 준비할 수 있는 이벤트 상한({cap}개)에 도달했습니다. 새 이벤트를 만들려면 먼저 이벤트 중 하나를 종료해 주세요.',
+  },
+  badgeSent: {
+    ja: '送信済み',
+    en: 'Sent',
+    zh: '已发送',
+    ko: '발송 완료',
+  },
+  badgeFailed: {
+    ja: '失敗',
+    en: 'Failed',
+    zh: '失败',
+    ko: '실패',
+  },
+  badgeCancelled: {
+    ja: '取り消し済み',
+    en: 'Cancelled',
+    zh: '已取消',
+    ko: '취소됨',
+  },
+  badgeInactive: {
+    ja: '現在無効',
+    en: 'Inactive',
+    zh: '当前无效',
+    ko: '현재 비활성',
+  },
   editEventTitle: {
     ja: '編集：{name}',
     en: 'Edit: {name}',

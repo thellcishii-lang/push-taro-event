@@ -36,21 +36,50 @@ for (let h = 0; h < 24; h += 1) {
   }
 }
 
+const VIOLET = '#6D28D9';
+const VIOLET_BRIGHT = '#7C3AED';
+
 const containerStyle: React.CSSProperties = {
-  padding: 24,
+  padding: '20px 16px 40px',
   maxWidth: 880,
   margin: '0 auto',
   fontFamily: 'sans-serif',
+  backgroundColor: '#f8fafc',
+  minHeight: '100vh',
+  boxSizing: 'border-box',
+  color: '#0f172a',
+};
+
+const cardStyle: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e2e8f0',
+  borderRadius: 12,
+  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
+};
+
+const headerStyle: React.CSSProperties = {
+  background: `linear-gradient(135deg, ${VIOLET_BRIGHT}, ${VIOLET})`,
+  borderRadius: 16,
+  padding: '16px 20px',
+  color: '#ffffff',
+  boxShadow: '0 4px 14px rgba(109, 40, 217, 0.35)',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  flexWrap: 'wrap',
+  gap: 12,
 };
 
 const inputStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
-  padding: '8px 10px',
-  marginTop: 4,
+  padding: '10px 12px',
+  marginTop: 6,
   border: '1px solid #cbd5e1',
-  borderRadius: 6,
+  borderRadius: 10,
   fontSize: 14,
+  backgroundColor: '#ffffff',
+  boxSizing: 'border-box',
 };
 
 const labelStyle: React.CSSProperties = {
@@ -59,6 +88,57 @@ const labelStyle: React.CSSProperties = {
   fontWeight: 600,
   marginBottom: 12,
 };
+
+const primaryButtonStyle: React.CSSProperties = {
+  padding: '10px 20px',
+  fontWeight: 700,
+  fontSize: 14,
+  backgroundColor: VIOLET,
+  color: '#ffffff',
+  border: 'none',
+  borderRadius: 10,
+  cursor: 'pointer',
+};
+
+const logoutButtonStyle: React.CSSProperties = {
+  padding: '7px 14px',
+  fontSize: 14,
+  fontWeight: 600,
+  borderRadius: 999,
+  border: '1px solid rgba(255, 255, 255, 0.5)',
+  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+  color: '#ffffff',
+  cursor: 'pointer',
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  padding: '6px 14px',
+  fontSize: 13,
+  fontWeight: 600,
+  borderRadius: 999,
+  border: '1px solid #fca5a5',
+  backgroundColor: '#ffffff',
+  color: '#b91c1c',
+  cursor: 'pointer',
+};
+
+function historyBadge(status: string): { key: 'badgeSent' | 'badgeFailed' | 'badgeCancelled'; style: React.CSSProperties } | null {
+  const base: React.CSSProperties = {
+    display: 'inline-block',
+    padding: '2px 10px',
+    fontSize: 12,
+    fontWeight: 700,
+    borderRadius: 999,
+    whiteSpace: 'nowrap',
+  };
+  if (status === 'sent')
+    return { key: 'badgeSent', style: { ...base, backgroundColor: '#dcfce7', color: '#15803d' } };
+  if (status === 'failed')
+    return { key: 'badgeFailed', style: { ...base, backgroundColor: '#fee2e2', color: '#b91c1c' } };
+  if (status === 'cancelled')
+    return { key: 'badgeCancelled', style: { ...base, backgroundColor: '#e2e8f0', color: '#475569' } };
+  return null;
+}
 
 export default function EventScheduleAdminPage() {
   const params = useParams<{ eventId: string }>();
@@ -168,23 +248,25 @@ export default function EventScheduleAdminPage() {
 
   if (!user) {
     return (
-      <main style={{ ...containerStyle, maxWidth: 420 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h1 style={{ fontSize: 20, fontWeight: 800 }}>{adminText(locale, 'adminLoginTitle')}</h1>
+      <main style={{ ...containerStyle, maxWidth: 480 }}>
+        <header style={headerStyle}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{adminText(locale, 'adminLoginTitle')}</h1>
           <AdminLanguageSelect locale={locale} onChange={setLocale} />
-        </div>
-        <label style={labelStyle}>
-          {adminText(locale, 'emailLabel')}
-          <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        </label>
-        <label style={labelStyle}>
-          {adminText(locale, 'passwordLabel')}
-          <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-        </label>
-        <button onClick={handleLogin} disabled={busy} style={{ padding: '10px 20px', fontWeight: 700 }}>
-          {adminText(locale, 'loginButton')}
-        </button>
-        {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
+        </header>
+        <section style={{ ...cardStyle, padding: 20, marginTop: 16 }}>
+          <label style={labelStyle}>
+            {adminText(locale, 'emailLabel')}
+            <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </label>
+          <label style={labelStyle}>
+            {adminText(locale, 'passwordLabel')}
+            <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <button onClick={handleLogin} disabled={busy} style={{ ...primaryButtonStyle, width: '100%' }}>
+            {adminText(locale, 'loginButton')}
+          </button>
+          {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
+        </section>
       </main>
     );
   }
@@ -196,17 +278,19 @@ export default function EventScheduleAdminPage() {
 
   return (
     <main style={containerStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>{adminText(locale, 'schedulePageTitle')}</h1>
+      <header style={headerStyle}>
+        <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{adminText(locale, 'schedulePageTitle')}</h1>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <AdminLanguageSelect locale={locale} onChange={setLocale} />
-          <button onClick={() => void signOut(auth)}>{adminText(locale, 'logoutButton')}</button>
+          <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
+            {adminText(locale, 'logoutButton')}
+          </button>
         </div>
-      </div>
+      </header>
       <AdminNav eventId={eventId} current="②" locale={locale} />
 
-      <section style={{ marginTop: 20, border: '1px solid #e2e8f0', borderRadius: 8, padding: 16 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>{adminText(locale, 'newScheduleTitle')}</h2>
+      <section style={{ ...cardStyle, marginTop: 20, padding: 20 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 14px' }}>{adminText(locale, 'newScheduleTitle')}</h2>
         <label style={labelStyle}>
           {adminText(locale, 'titleLabel')}
           <input style={inputStyle} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
@@ -232,7 +316,7 @@ export default function EventScheduleAdminPage() {
         <button
           onClick={handleSchedule}
           disabled={busy || !form.title.trim() || !form.body.trim() || !form.date}
-          style={{ padding: '10px 20px', fontWeight: 700 }}
+          style={primaryButtonStyle}
         >
           {adminText(locale, 'scheduleButton')}
         </button>
@@ -241,17 +325,31 @@ export default function EventScheduleAdminPage() {
       {message && <p style={{ marginTop: 14, fontSize: 14 }}>{message}</p>}
 
       <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
           {adminText(locale, 'scheduledListTitle', { count: String(scheduled.length) })}
         </h2>
         {scheduled.length === 0 && <p style={{ fontSize: 13, color: '#64748b' }}>{adminText(locale, 'noScheduled')}</p>}
         {scheduled.map((campaign) => (
-          <article key={campaign.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 8 }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>
-              {campaign.scheduledAt?.replace('T', ' ')} ― {campaign.title}
+          <article key={campaign.id} style={{ ...cardStyle, padding: 16, marginTop: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{campaign.title}</div>
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: '2px 10px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  borderRadius: 999,
+                  backgroundColor: '#ede9fe',
+                  color: VIOLET,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {campaign.scheduledAt?.replace('T', ' ')}
+              </span>
             </div>
-            <p style={{ fontSize: 13, marginTop: 2 }}>{campaign.body}</p>
-            <button onClick={() => void handleCancel(campaign.id)} disabled={busy} style={{ marginTop: 6 }}>
+            <p style={{ fontSize: 13, marginTop: 4 }}>{campaign.body}</p>
+            <button onClick={() => void handleCancel(campaign.id)} disabled={busy} style={{ ...dangerButtonStyle, marginTop: 8 }}>
               {adminText(locale, 'cancelButton')}
             </button>
           </article>
@@ -259,19 +357,25 @@ export default function EventScheduleAdminPage() {
       </section>
 
       <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700 }}>{adminText(locale, 'scheduleHistoryTitle')}</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{adminText(locale, 'scheduleHistoryTitle')}</h2>
         {finished.length === 0 && <p style={{ fontSize: 13, color: '#64748b' }}>{adminText(locale, 'noScheduleHistory')}</p>}
-        {finished.map((campaign) => (
-          <article key={campaign.id} style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginTop: 8 }}>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>{campaign.title}</div>
-            <div style={{ fontSize: 12, color: '#475569' }}>
-              {adminText(locale, 'historyReservedPrefix', { at: campaign.scheduledAt?.replace('T', ' ') ?? '' })}
-              {campaign.status === 'sent' && adminText(locale, 'histSent', { count: String(campaign.sentCount ?? 0) })}
-              {campaign.status === 'cancelled' && adminText(locale, 'histCancelled')}
-              {campaign.status === 'failed' && adminText(locale, 'historyFailed', { error: campaign.error ?? '' })}
-            </div>
-          </article>
-        ))}
+        {finished.map((campaign) => {
+          const badge = historyBadge(campaign.status);
+          return (
+            <article key={campaign.id} style={{ ...cardStyle, padding: 16, marginTop: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{campaign.title}</div>
+                {badge && <span style={badge.style}>{adminText(locale, badge.key)}</span>}
+              </div>
+              <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
+                {adminText(locale, 'historyReservedPrefix', { at: campaign.scheduledAt?.replace('T', ' ') ?? '' })}
+                {campaign.status === 'sent' && adminText(locale, 'histSent', { count: String(campaign.sentCount ?? 0) })}
+                {campaign.status === 'cancelled' && adminText(locale, 'histCancelled')}
+                {campaign.status === 'failed' && adminText(locale, 'historyFailed', { error: campaign.error ?? '' })}
+              </div>
+            </article>
+          );
+        })}
       </section>
     </main>
   );
