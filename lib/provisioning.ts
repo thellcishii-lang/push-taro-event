@@ -11,6 +11,7 @@
 //   引き直して続きを完了させる。
 // - パスワードは Auth に渡すだけで、ログ・レコードのどこにも残さない。
 import { authAdmin } from './firebase-admin';
+import { propagateCapsToOwnerEvents } from './event-store';
 import {
   applyProvisioningUpdate,
   completeOrganizerRecord,
@@ -33,6 +34,14 @@ export interface ProvisionOrganizerInput {
   startDate: string;
   subscriberCap?: number;
   couponCap?: number;
+  /**
+   * 一時的な枠上げの期限（ISO日付文字列）。任意項目:
+   * 送られなければ既存値を変えない。null は明示的なクリア。
+   * 警告バナー（復帰時の枠超過）用の材料として保持するだけ。
+   */
+  tempSubscriberCapUntil?: string | null;
+  /** 一時上げの期限後に戻る購読者枠。任意項目（意味は上と同じ）。 */
+  restoredSubscriberCap?: number | null;
   agencyCode?: string | null;
 }
 
@@ -51,15 +60,53 @@ export function decideProvisioning(
   return existing?.ownerUid ? 'update' : 'create';
 }
 
+const ISO_DATE_PREFIX = /^\d{4}-\d{2}-\d{2}/;
+
+/**
+ * 一時上げ期限の無害化（純粋関数）。任意項目なので、変な値で
+ * リクエスト全体を落とさず「無かったこと」に倒す:
+ * - undefined（未送信）→ undefined（既存値を変えない）
+ * - null → null（明示的なクリア）
+ * - ISO日付として読める文字列 → そのまま
+ * - それ以外 → undefined（無視）
+ */
+function sanitizeTempSubscriberCapUntil(
+  value: string | null | undefined,
+): string | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== 'string') return undefined;
+  if (!ISO_DATE_PREFIX.test(value) || Number.isNaN(Date.parse(value))) return undefined;
+  return value;
+}
+
+/**
+ * 復帰枠の無害化（純粋関数）。考え方は sanitizeTempSubscriberCapUntil と同じ:
+ * 有限の0以上の数か null だけを通し、それ以外は無視する。
+ */
+function sanitizeRestoredSubscriberCap(
+  value: number | null | undefined,
+): number | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return undefined;
+  return value;
+}
+
 /**
  * 更新で反映する項目の抽出（純粋関数）。
  * 送られた項目だけを patch に含める。email / startDate / agencyCode と
  * 認証情報（パスワード）は更新対象に含めない。
+ * 一時上げまわりの任意項目は無害化してから含める（不正値は無視）。
  */
 export function buildProvisioningUpdate(
   input: Pick<
     ProvisionOrganizerInput,
-    'companyName' | 'address' | 'phone' | 'subscriberCap' | 'couponCap'
+    | 'companyName'
+    | 'address'
+    | 'phone'
+    | 'subscriberCap'
+    | 'couponCap'
+    | 'tempSubscriberCapUntil'
+    | 'restoredSubscriberCap'
   >,
 ): ProvisioningProfilePatch {
   const patch: ProvisioningProfilePatch = {};
@@ -74,6 +121,10 @@ export function buildProvisioningUpdate(
   if (typeof input.couponCap === 'number' && Number.isFinite(input.couponCap)) {
     patch.couponCap = input.couponCap;
   }
+  const tempUntil = sanitizeTempSubscriberCapUntil(input.tempSubscriberCapUntil);
+  if (tempUntil !== undefined) patch.tempSubscriberCapUntil = tempUntil;
+  const restoredCap = sanitizeRestoredSubscriberCap(input.restoredSubscriberCap);
+  if (restoredCap !== undefined) patch.restoredSubscriberCap = restoredCap;
   return patch;
 }
 
@@ -128,6 +179,35 @@ export async function provisionOrganizer(
     if (Object.keys(patch).length > 0) {
       await applyProvisioningUpdate(input.contractId, patch);
     }
+    // 枠が変わったら、終わっていないイベント（下書き・開催中）にも
+    // 同じ枠を伝播させる。終了済みイベントの枠は履歴として触らない。
+    // 伝播の失敗で更新自体を失敗にはしない（失敗はログに残す）。
+    if (patch.subscriberCap !== undefined || patch.couponCap !== undefined) {
+      try {
+        const propagation = await propagateCapsToOwnerEvents(existing!.ownerUid!, {
+          subscriberCap: patch.subscriberCap,
+          couponCap: patch.couponCap,
+        });
+        if (propagation.failed.length > 0) {
+          await logProvisioning({
+            contractId: input.contractId,
+            email: existing!.email,
+            result: 'updated',
+            error: `caps-propagation-failed: ${propagation.failed
+              .map((f) => f.eventId)
+              .join(',')}`,
+          });
+        }
+      } catch (error) {
+        console.error('[provisioning] 枠の伝播に失敗:', error);
+        await logProvisioning({
+          contractId: input.contractId,
+          email: existing!.email,
+          result: 'updated',
+          error: 'caps-propagation-error',
+        }).catch(() => undefined);
+      }
+    }
     await logProvisioning({
       contractId: input.contractId,
       email: existing!.email,
@@ -162,6 +242,11 @@ export async function provisionOrganizer(
     startDate: input.startDate,
     subscriberCap: input.subscriberCap,
     couponCap: input.couponCap,
+    // 一時上げまわりの任意項目は、無害化した値だけを保持する。
+    tempSubscriberCapUntil:
+      sanitizeTempSubscriberCapUntil(input.tempSubscriberCapUntil) ?? null,
+    restoredSubscriberCap:
+      sanitizeRestoredSubscriberCap(input.restoredSubscriberCap) ?? null,
     agencyCode: input.agencyCode ?? null,
     // 初期パスワードは初回ログインで必ず変更させる。
     mustChangePassword: true,

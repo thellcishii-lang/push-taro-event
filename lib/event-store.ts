@@ -15,6 +15,7 @@ import {
   EventConfig,
   MAX_COUPONS_PER_EVENT,
   isValidResetTime,
+  receivesCapsPropagation,
 } from './event';
 
 const EVENTS_COLLECTION = 'events';
@@ -117,6 +118,70 @@ export async function listUnfinalizedEvents(): Promise<EventConfig[]> {
     .where('finalizedAt', '==', null)
     .get();
   return snap.docs.map((doc) => toEventConfig(doc.id, doc.data()));
+}
+
+/** Firestore のバッチ上限（500）に対する安全側のチャンクサイズ。event-reset.ts と同じ値。 */
+const UPDATE_CHUNK_SIZE = 450;
+
+export interface CapsPropagationResult {
+  /** 枠を反映できたイベントID */
+  updatedEventIds: string[];
+  /** 反映に失敗したイベントと理由（1件の失敗で全体は止めない） */
+  failed: { eventId: string; error: string }[];
+}
+
+/**
+ * 契約枠の変更を、その主催者の「終わっていない」イベント
+ * （下書き・開催中。receivesCapsPropagation 参照）へ伝播する。
+ *
+ * 冪等: 同じ枠の再送でも結果は同じ（絶対値で上書きする）。
+ * 失敗の局所化: チャンク（450件）単位のバッチで書き、チャンクが
+ * 失敗したら1件ずつに落として失敗したイベントだけを結果に集める。
+ * 呼び出し側は failed を見て記録すればよく、この関数自体は
+ * 個別イベントの失敗では throw しない。
+ */
+export async function propagateCapsToOwnerEvents(
+  ownerUid: string,
+  caps: { subscriberCap?: number; couponCap?: number },
+): Promise<CapsPropagationResult> {
+  const patch: { subscriberCap?: number; couponCap?: number } = {};
+  if (caps.subscriberCap !== undefined) patch.subscriberCap = caps.subscriberCap;
+  if (caps.couponCap !== undefined) patch.couponCap = caps.couponCap;
+
+  const result: CapsPropagationResult = { updatedEventIds: [], failed: [] };
+  if (Object.keys(patch).length === 0) return result;
+
+  const events = await listEventsByOwner(ownerUid);
+  const targets = events.filter(receivesCapsPropagation);
+
+  for (let i = 0; i < targets.length; i += UPDATE_CHUNK_SIZE) {
+    const chunk = targets.slice(i, i + UPDATE_CHUNK_SIZE);
+    try {
+      const batch = db.batch();
+      for (const event of chunk) {
+        batch.update(db.collection(EVENTS_COLLECTION).doc(event.id), {
+          ...patch,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      result.updatedEventIds.push(...chunk.map((event) => event.id));
+    } catch {
+      // チャンク単位で失敗したら1件ずつに落として、失敗を局所化する。
+      for (const event of chunk) {
+        try {
+          await updateEvent(event.id, patch);
+          result.updatedEventIds.push(event.id);
+        } catch (error) {
+          result.failed.push({
+            eventId: event.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    }
+  }
+  return result;
 }
 
 export type UpdateEventInput = Partial<

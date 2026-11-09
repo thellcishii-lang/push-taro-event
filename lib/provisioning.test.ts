@@ -47,6 +47,57 @@ describe('buildProvisioningUpdate', () => {
   it('空文字の会社名は含めない（誤って消さない）', () => {
     expect(buildProvisioningUpdate({ companyName: '  ' })).toEqual({});
   });
+
+  describe('一時上げまわりの任意項目', () => {
+    it('正しい日付と復帰枠は含める', () => {
+      expect(
+        buildProvisioningUpdate({
+          companyName: '',
+          tempSubscriberCapUntil: '2026-12-31',
+          restoredSubscriberCap: 50000,
+        }),
+      ).toEqual({
+        tempSubscriberCapUntil: '2026-12-31',
+        restoredSubscriberCap: 50000,
+      });
+    });
+    it('ISO日時形式でも日付として読めれば含める', () => {
+      expect(
+        buildProvisioningUpdate({
+          companyName: '',
+          tempSubscriberCapUntil: '2026-12-31T23:59:59+09:00',
+        }),
+      ).toEqual({ tempSubscriberCapUntil: '2026-12-31T23:59:59+09:00' });
+    });
+    it('null は明示的なクリアとして含める', () => {
+      expect(
+        buildProvisioningUpdate({
+          companyName: '',
+          tempSubscriberCapUntil: null,
+          restoredSubscriberCap: null,
+        }),
+      ).toEqual({ tempSubscriberCapUntil: null, restoredSubscriberCap: null });
+    });
+    it('送られなければ含めない（既存値を変えない）', () => {
+      expect(buildProvisioningUpdate({ companyName: '' })).toEqual({});
+    });
+    it('日付として読めない文字列は無視する（リクエスト全体は落とさない）', () => {
+      expect(
+        buildProvisioningUpdate({ companyName: '', tempSubscriberCapUntil: '来月末' }),
+      ).toEqual({});
+      expect(
+        buildProvisioningUpdate({ companyName: '', tempSubscriberCapUntil: '2026-13-40' }),
+      ).toEqual({});
+    });
+    it('復帰枠が数値でなければ・負なら無視する', () => {
+      expect(
+        buildProvisioningUpdate({ companyName: '', restoredSubscriberCap: Number.NaN }),
+      ).toEqual({});
+      expect(buildProvisioningUpdate({ companyName: '', restoredSubscriberCap: -1 })).toEqual(
+        {},
+      );
+    });
+  });
 });
 
 const createInput = (overrides: Partial<ProvisionOrganizerInput> = {}): ProvisionOrganizerInput => ({
