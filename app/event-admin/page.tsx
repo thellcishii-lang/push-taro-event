@@ -23,6 +23,7 @@ import {
 import { auth } from '@/lib/firebase-client';
 import PasswordInput from '@/components/PasswordInput';
 import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
+import { CapWarningBanner } from '@/components/CapWarningBanner';
 import {
   EventConfig,
   EventResetMode,
@@ -435,6 +436,8 @@ export default function EventAdminPage() {
           </button>
         </div>
       </header>
+
+      <CapWarningBanner locale={locale} />
 
       <section style={{ marginTop: 20 }}>
         <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{adminText(locale, 'eventsListTitle')}</h2>
