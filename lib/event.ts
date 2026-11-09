@@ -162,6 +162,18 @@ export function canCreateAnotherEvent(
 }
 
 /**
+ * 契約枠の変更（プロビジョニング更新）を伝播してよいイベントかどうか。
+ * 「終わった」イベント = 終了ステータス（'ended'）または終了処理完了
+ * （finalizedAt 設定済み）。それ以外（下書き・開催中）は伝播対象で、
+ * 終了済みのイベントの枠は履歴として触らない。
+ */
+export function receivesCapsPropagation(
+  event: Pick<EventConfig, 'status' | 'finalizedAt'>,
+): boolean {
+  return event.status !== 'ended' && !event.finalizedAt;
+}
+
+/**
  * 終了処理（電話番号消去）の対象かどうか。
  * 終了日を過ぎていて、まだ finalized されていないイベントが対象。
  * リセットより優先される（終了後にリセットは走らない）。

@@ -8,6 +8,7 @@ import {
   isFinalizationDue,
   isResetDue,
   isValidResetTime,
+  receivesCapsPropagation,
   jstDateString,
   jstTimeString,
 } from './event';
@@ -132,5 +133,26 @@ describe('同時イベント上限（MAX_CONCURRENT_EVENTS）', () => {
     expect(
       canCreateAnotherEvent([ev('live'), ev('live'), ev('live'), ev('ended')]),
     ).toBe(false);
+  });
+});
+
+describe('枠伝播の対象（receivesCapsPropagation）', () => {
+  const ev = (status: EventConfig['status'], finalizedAt: string | null = null) => ({
+    status,
+    finalizedAt,
+  });
+
+  it('下書き・開催中は伝播対象', () => {
+    expect(receivesCapsPropagation(ev('draft'))).toBe(true);
+    expect(receivesCapsPropagation(ev('live'))).toBe(true);
+  });
+
+  it('終了したイベントは対象外（枠は履歴として触らない）', () => {
+    expect(receivesCapsPropagation(ev('ended'))).toBe(false);
+  });
+
+  it('終了処理が完了したイベントはステータスによらず対象外', () => {
+    expect(receivesCapsPropagation(ev('live', '2026-11-09T00:00:00.000Z'))).toBe(false);
+    expect(receivesCapsPropagation(ev('draft', '2026-11-09T00:00:00.000Z'))).toBe(false);
   });
 });

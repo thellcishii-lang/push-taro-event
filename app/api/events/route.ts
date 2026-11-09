@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { getUidFromRequest, passwordChangeBlock } from '@/lib/event-auth';
 import { createEvent, listEventsByOwner } from '@/lib/event-store';
 import { EventResetMode, canCreateAnotherEvent } from '@/lib/event';
+import { findOrganizerByOwnerUid, resolveEffectiveCaps } from '@/lib/organizers';
 import { Locale } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
@@ -58,6 +59,11 @@ export async function POST(request: Request) {
     );
   }
 
+  // 枠（購読者・クーポン）は契約側の現在値を継承する。主催者からは
+  // 設定できない（料金＝契約枠の軸）。契約レコードが無い場合は既定値。
+  const organizer = await findOrganizerByOwnerUid(uid);
+  const caps = resolveEffectiveCaps(organizer);
+
   try {
     const event = await createEvent({
       name,
@@ -67,8 +73,8 @@ export async function POST(request: Request) {
       resetMode: body.resetMode as EventResetMode | undefined,
       resetTime: body.resetTime as string | undefined,
       defaultLocale: body.defaultLocale as Locale | undefined,
-      // 購読者上限は料金（契約枠）の軸なので主催者からは設定できない。
-      // 既定値で作成し、変更は運営側API（/api/admin/events/[eventId]）でのみ行う。
+      subscriberCap: caps.subscriberCap,
+      couponCap: caps.couponCap,
       backupRetentionDays: body.backupRetentionDays as number | undefined,
     });
     return NextResponse.json({ event }, { status: 201 });

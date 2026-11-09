@@ -63,6 +63,16 @@ export async function POST(request: Request) {
     startDate: typeof body.startDate === 'string' ? body.startDate : '',
     subscriberCap: typeof body.subscriberCap === 'number' ? body.subscriberCap : undefined,
     couponCap: typeof body.couponCap === 'number' ? body.couponCap : undefined,
+    // 一時上げまわりの任意項目。型だけ通して、値の妥当性は
+    // lib/provisioning.ts の無害化に任せる（不正値は無視される）。
+    tempSubscriberCapUntil:
+      typeof body.tempSubscriberCapUntil === 'string' || body.tempSubscriberCapUntil === null
+        ? body.tempSubscriberCapUntil
+        : undefined,
+    restoredSubscriberCap:
+      typeof body.restoredSubscriberCap === 'number' || body.restoredSubscriberCap === null
+        ? body.restoredSubscriberCap
+        : undefined,
     agencyCode: typeof body.agencyCode === 'string' ? body.agencyCode : null,
   });
 

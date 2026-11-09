@@ -34,6 +34,15 @@ export interface Organizer {
   /** 契約枠（運営が決める。イベント作成時の既定値になる） */
   subscriberCap: number;
   couponCap: number;
+  /**
+   * 一時的な枠上げの期限（'YYYY-MM-DD'）。本家が「この月だけ上げる」を
+   * 送ってきたときだけ入る。警告バナー（復帰時の枠超過）の材料。未設定は null。
+   */
+  tempSubscriberCapUntil: string | null;
+  /**
+   * 一時上げの期限後に戻る購読者枠。警告バナーの判定材料。未設定は null。
+   */
+  restoredSubscriberCap: number | null;
   /** 代理店コード（保持のみ。集計は本家側） */
   agencyCode: string | null;
   createdAt: string;
@@ -54,9 +63,33 @@ function toOrganizer(id: string, data: FirebaseFirestore.DocumentData): Organize
     subscriberCap:
       typeof data.subscriberCap === 'number' ? data.subscriberCap : DEFAULT_SUBSCRIBER_CAP,
     couponCap: typeof data.couponCap === 'number' ? data.couponCap : MAX_COUPONS_PER_EVENT,
+    tempSubscriberCapUntil:
+      typeof data.tempSubscriberCapUntil === 'string' ? data.tempSubscriberCapUntil : null,
+    restoredSubscriberCap:
+      typeof data.restoredSubscriberCap === 'number' ? data.restoredSubscriberCap : null,
     agencyCode: (data.agencyCode as string | null) ?? null,
     createdAt: data.createdAt?.toDate?.().toISOString() ?? '',
     updatedAt: data.updatedAt?.toDate?.().toISOString() ?? '',
+  };
+}
+
+/** イベントに実際に効く枠（契約枠が無ければ既定値）。 */
+export interface EffectiveCaps {
+  subscriberCap: number;
+  couponCap: number;
+}
+
+/**
+ * イベント作成時に使う枠の解決（純粋関数）。
+ * 契約者レコードがあればその契約枠、無ければ既定値
+ * （購読者 DEFAULT_SUBSCRIBER_CAP / クーポン MAX_COUPONS_PER_EVENT）。
+ */
+export function resolveEffectiveCaps(
+  organizer: Pick<Organizer, 'subscriberCap' | 'couponCap'> | null,
+): EffectiveCaps {
+  return {
+    subscriberCap: organizer?.subscriberCap ?? DEFAULT_SUBSCRIBER_CAP,
+    couponCap: organizer?.couponCap ?? MAX_COUPONS_PER_EVENT,
   };
 }
 
@@ -118,6 +151,8 @@ export interface CreateOrganizerData {
   startDate: string;
   subscriberCap?: number;
   couponCap?: number;
+  tempSubscriberCapUntil?: string | null;
+  restoredSubscriberCap?: number | null;
   agencyCode?: string | null;
   mustChangePassword?: boolean;
 }
@@ -140,6 +175,8 @@ export async function createOrganizerRecord(
       startDate: data.startDate,
       subscriberCap: data.subscriberCap ?? DEFAULT_SUBSCRIBER_CAP,
       couponCap: data.couponCap ?? MAX_COUPONS_PER_EVENT,
+      tempSubscriberCapUntil: data.tempSubscriberCapUntil ?? null,
+      restoredSubscriberCap: data.restoredSubscriberCap ?? null,
       agencyCode: data.agencyCode ?? null,
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -164,6 +201,10 @@ export interface ProvisioningProfilePatch {
   phone?: string;
   subscriberCap?: number;
   couponCap?: number;
+  /** 一時上げの期限。null は「一時上げなし」への明示的なクリア */
+  tempSubscriberCapUntil?: string | null;
+  /** 一時上げ後に戻る購読者枠。null は明示的なクリア */
+  restoredSubscriberCap?: number | null;
 }
 
 /**
