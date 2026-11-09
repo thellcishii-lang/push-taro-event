@@ -1323,6 +1323,60 @@ export const ADMIN_TEXT = {
     zh: '出于安全考虑，请先退出，重新登录后再试。',
     ko: '보안을 위해 로그아웃한 뒤 다시 로그인하여 시도해 주세요.',
   },
+  capWarningTitle: {
+    ja: 'プラン枠超過の警告',
+    en: 'Plan cap warning',
+    zh: '套餐额度警告',
+    ko: '플랜 한도 경고',
+  },
+  capWarningBody: {
+    ja: '{date} にプランが下位プランへ戻ると、購読者枠は {cap} 人に戻ります。以下の開催中イベントはすでにその枠を超えているため、プランが戻ると新規登録が止まります。',
+    en: 'When your plan returns to the lower tier on {date}, the subscriber cap goes back to {cap}. The live events below already exceed that cap, so new registrations will stop once the plan reverts.',
+    zh: '当您的套餐于 {date} 恢复为低档套餐时，订阅者上限将恢复为 {cap} 人。以下进行中的活动已超过该上限，套餐恢复后将停止新注册。',
+    ko: '{date}에 플랜이 하위 플랜으로 돌아가면 구독자 한도가 {cap}명으로 돌아갑니다. 아래 진행 중인 이벤트는 이미 그 한도를 초과했으므로, 플랜이 돌아가면 신규 등록이 중단됩니다.',
+  },
+  capWarningEventLine: {
+    ja: '{name}：登録者 {count} 人',
+    en: '{name}: {count} subscribers',
+    zh: '{name}：已注册 {count} 人',
+    ko: '{name}: 등록자 {count}명',
+  },
+  capWarningGuidance: {
+    ja: '大きなイベントが続く場合は、本家のプラン画面から「もう1か月延長」できます。',
+    en: 'If your big event continues, you can extend the higher plan by one month from the plan screen on push-taro.com.',
+    zh: '如果大型活动仍在继续，可在 push-taro.com 的套餐页面选择“再延长1个月”。',
+    ko: '큰 이벤트가 계속되는 경우 push-taro.com의 플랜 화면에서 "1개월 더 연장"을 선택할 수 있습니다.',
+  },
+  capWarningExtendButton: {
+    ja: '本家で延長する',
+    en: 'Extend on push-taro.com',
+    zh: '在 push-taro.com 延长',
+    ko: 'push-taro.com에서 연장하기',
+  },
+  couponOptionTitle: {
+    ja: 'クーポン枠の追加購入',
+    en: 'Buy more coupon slots',
+    zh: '购买更多优惠券名额',
+    ko: '쿠폰 한도 추가 구매',
+  },
+  couponOptionBody: {
+    ja: 'このイベントのクーポン上限は現在 {cap} 件です。必要な場合は、本家サイトで +100件（¥10,000）ずつ追加購入できます（上限500件）。',
+    en: 'This event currently allows up to {cap} coupons. If you need more, you can buy +100 slots (¥10,000) at a time on push-taro.com (max 500).',
+    zh: '该活动目前的优惠券上限为 {cap} 张。如有需要，可在 push-taro.com 以 +100张（¥10,000）为单位追加购买（上限500张）。',
+    ko: '이 이벤트의 쿠폰 상한은 현재 {cap}개입니다. 필요한 경우 push-taro.com에서 +100개(¥10,000) 단위로 추가 구매할 수 있습니다(상한 500개).',
+  },
+  couponOptionButton: {
+    ja: 'クーポン枠を追加購入（+100件 / ¥10,000）',
+    en: 'Buy +100 coupon slots (¥10,000)',
+    zh: '追加购买优惠券名额（+100张 / ¥10,000）',
+    ko: '쿠폰 한도 추가 구매(+100개 / ¥10,000)',
+  },
+  couponOptionMaxNote: {
+    ja: 'クーポン枠は上限（500件）に達しています',
+    en: 'The coupon cap has reached the maximum (500).',
+    zh: '优惠券名额已达上限（500张）',
+    ko: '쿠폰 한도가 상한(500개)에 도달했습니다',
+  },
 } as const satisfies Record<string, Record<Locale, string>>;
 
 export type AdminTextKey = keyof typeof ADMIN_TEXT;

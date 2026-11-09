@@ -4,6 +4,7 @@
 // 管理画面①②③とイベント設定の間の共通ナビ。
 import { adminText } from '@/lib/ui-text';
 import type { Locale } from '@/lib/i18n';
+import { CapWarningBanner } from '@/components/CapWarningBanner';
 
 const VIOLET = '#6D28D9';
 
@@ -47,18 +48,21 @@ export function AdminNav({
     { key: '設定', href: '/event-admin', label: adminText(locale, 'navSettings') },
   ];
   return (
-    <nav style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
-      {items.map((item) =>
-        item.key === current ? (
-          <span key={item.href} style={pillCurrentStyle} aria-current="page">
-            {item.label}
-          </span>
-        ) : (
-          <a key={item.href} href={item.href} style={pillLinkStyle}>
-            {item.label}
-          </a>
-        ),
-      )}
-    </nav>
+    <>
+      <nav style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+        {items.map((item) =>
+          item.key === current ? (
+            <span key={item.href} style={pillCurrentStyle} aria-current="page">
+              {item.label}
+            </span>
+          ) : (
+            <a key={item.href} href={item.href} style={pillLinkStyle}>
+              {item.label}
+            </a>
+          ),
+        )}
+      </nav>
+      <CapWarningBanner locale={locale} />
+    </>
   );
 }

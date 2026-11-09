@@ -45,6 +45,11 @@ interface InfoPdf {
 const VIOLET = '#6D28D9';
 const VIOLET_BRIGHT = '#7C3AED';
 
+/** クーポンオプションで増やせるイベント単位の上限（LP 記載）。 */
+const COUPON_OPTION_MAX_CAP = 500;
+/** クーポンオプションの購入先（本家の決済ページ）。 */
+const HONKE_COUPON_OPTION_URL = 'https://push-taro.com/event-option';
+
 const containerStyle: React.CSSProperties = {
   padding: '20px 16px 40px',
   maxWidth: 880,
@@ -419,6 +424,33 @@ export default function EventCouponAdminPage() {
         <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
           {adminText(locale, 'capNote')}
         </p>
+        <div style={{ ...cardStyle, marginTop: 12, padding: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 14 }}>
+            {adminText(locale, 'couponOptionTitle')}
+          </div>
+          <p style={{ fontSize: 13, color: '#475569', marginTop: 6 }}>
+            {adminText(locale, 'couponOptionBody', { cap: String(couponCap) })}
+          </p>
+          {couponCap >= COUPON_OPTION_MAX_CAP ? (
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#b45309', marginTop: 8 }}>
+              {adminText(locale, 'couponOptionMaxNote')}
+            </p>
+          ) : (
+            <a
+              href={`${HONKE_COUPON_OPTION_URL}?eventId=${eventId}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                ...primaryButtonStyle,
+                display: 'inline-block',
+                textDecoration: 'none',
+                marginTop: 8,
+              }}
+            >
+              {adminText(locale, 'couponOptionButton')}
+            </a>
+          )}
+        </div>
         {coupons.map((coupon) => (
           <article key={coupon.id} style={{ ...cardStyle, padding: 16, marginTop: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
