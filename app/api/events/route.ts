@@ -73,6 +73,10 @@ export async function POST(request: Request) {
       resetMode: body.resetMode as EventResetMode | undefined,
       resetTime: body.resetTime as string | undefined,
       defaultLocale: body.defaultLocale as Locale | undefined,
+      admissionQrEnabled:
+        typeof body.admissionQrEnabled === 'boolean'
+          ? body.admissionQrEnabled
+          : undefined,
       subscriberCap: caps.subscriberCap,
       couponCap: caps.couponCap,
       backupRetentionDays: body.backupRetentionDays as number | undefined,

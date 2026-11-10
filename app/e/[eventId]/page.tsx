@@ -14,7 +14,7 @@
 // カード（言語はピル選択）、取得済みカードはQR常時表示、登録フェーズでは
 // 画面下に固定したプッシュ有効化バナーが登録ボタンになる。
 // 結果・エラーの文は、操作した場所のすぐ近くに出す（ページ末尾には出さない）。
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   ConfirmationResult,
@@ -32,6 +32,7 @@ import {
 import { uiText } from '@/lib/ui-text';
 import { buildCouponGroups } from '@/lib/coupon-groups';
 import { QRCodeSVG } from 'qrcode.react';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface PublicEvent {
   name: string;
@@ -40,6 +41,13 @@ interface PublicEvent {
   status: 'draft' | 'live' | 'ended';
   resetMode: 'full-daily' | 'keep-phones';
   defaultLocale: string;
+  /** 入場用QRの取り込みが有効か（主催者設定。オフなら画面に何も出さない） */
+  admissionQrEnabled: boolean;
+}
+
+interface AdmissionQrState {
+  stored: boolean;
+  content: string | null;
 }
 
 type Phase =
@@ -194,6 +202,15 @@ export default function EventVisitorPage() {
   const [infoPdfs, setInfoPdfs] = useState<InfoPdf[]>([]);
   // QRを開いている取得済みクーポン。undefined = 未操作（先頭の未使用分を開く）
   const [openClaimId, setOpenClaimId] = useState<string | null | undefined>(undefined);
+  // 入場用QR（外部発行）の保存状態。null = 未取得
+  const [admissionQr, setAdmissionQr] = useState<AdmissionQrState | null>(null);
+  const [qrExpanded, setQrExpanded] = useState(false);
+  const [qrEditing, setQrEditing] = useState(false);
+  const [qrScanning, setQrScanning] = useState(false);
+  const [qrManual, setQrManual] = useState('');
+  const [qrBusy, setQrBusy] = useState(false);
+  const [qrFeedback, setQrFeedback] = useState<{ text: string; error: boolean } | null>(null);
+  const qrScannerRef = useRef<Html5Qrcode | null>(null);
   // カタログで展開中の出店者グループ（検索中は全グループ展開扱い）
   const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
 
@@ -391,6 +408,142 @@ export default function EventVisitorPage() {
     void loadMyClaims(user, locale);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, eventId, locale]);
+
+  // 入場用QRの保存状態は、機能がオンのイベントでだけ取得する
+  const loadAdmissionQr = async (currentUser: User) => {
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch(`/api/events/${eventId}/admission-qr`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setAdmissionQr({
+          stored: data.stored === true,
+          content: typeof data.content === 'string' ? data.content : null,
+        });
+      }
+    } catch {
+      // 状態が読めなくても他の機能は止めない
+    }
+  };
+
+  useEffect(() => {
+    if (!user || !event?.admissionQrEnabled) return;
+    void loadAdmissionQr(user);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, eventId, event?.admissionQrEnabled]);
+
+  const saveAdmissionQrContent = async (content: string) => {
+    if (!user) return;
+    setQrBusy(true);
+    setQrFeedback(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/events/${eventId}/admission-qr`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ content }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setQrFeedback({
+          text: data.error ?? uiText(locale, 'admissionQrSaveFailed'),
+          error: true,
+        });
+        return;
+      }
+      // サーバー側で前後の空白を取り除いて保存するので表示も合わせる
+      setAdmissionQr({ stored: true, content: content.trim() });
+      setQrEditing(false);
+      setQrExpanded(true);
+      setQrManual('');
+      setQrFeedback({ text: uiText(locale, 'admissionQrSaved'), error: false });
+    } catch {
+      setQrFeedback({ text: uiText(locale, 'admissionQrSaveFailed'), error: true });
+    } finally {
+      setQrBusy(false);
+    }
+  };
+
+  const handleDeleteAdmissionQr = async () => {
+    if (!user) return;
+    setQrBusy(true);
+    setQrFeedback(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/events/${eventId}/admission-qr`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setQrFeedback({
+          text: data.error ?? uiText(locale, 'admissionQrDeleteFailed'),
+          error: true,
+        });
+        return;
+      }
+      setAdmissionQr({ stored: false, content: null });
+      setQrExpanded(false);
+      setQrFeedback({ text: uiText(locale, 'admissionQrDeleted'), error: false });
+    } catch {
+      setQrFeedback({ text: uiText(locale, 'admissionQrDeleteFailed'), error: true });
+    } finally {
+      setQrBusy(false);
+    }
+  };
+
+  const stopQrCamera = useCallback(async () => {
+    const scanner = qrScannerRef.current;
+    if (scanner) {
+      try {
+        if (scanner.isScanning) await scanner.stop();
+        scanner.clear();
+      } catch {
+        // 停止失敗は無視する
+      }
+      qrScannerRef.current = null;
+    }
+    setQrScanning(false);
+  }, []);
+
+  const startQrCamera = async () => {
+    setQrFeedback(null);
+    try {
+      const scanner = new Html5Qrcode('admission-qr-reader');
+      qrScannerRef.current = scanner;
+      setQrScanning(true);
+      await scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        async (decodedText) => {
+          await stopQrCamera();
+          await saveAdmissionQrContent(decodedText);
+        },
+        () => {},
+      );
+    } catch (error) {
+      setQrScanning(false);
+      const err = error as { name?: string; message?: string };
+      if (err?.name === 'NotAllowedError' || (err?.message ?? '').includes('Permission')) {
+        setQrFeedback({ text: uiText(locale, 'admissionQrCameraDenied'), error: true });
+      } else if (err?.name === 'NotFoundError') {
+        setQrFeedback({ text: uiText(locale, 'admissionQrCameraNotFound'), error: true });
+      } else {
+        setQrFeedback({ text: uiText(locale, 'admissionQrCameraFailed'), error: true });
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      void stopQrCamera();
+    };
+  }, [stopQrCamera]);
 
   // 登録後は取得状態を自動で追いかける: ブースで消込されたら、
   // 手動リロードなしでカードが「使用済み」に切り替わりQRが閉じる。
@@ -655,6 +808,309 @@ export default function EventVisitorPage() {
 
       {user && (phase === 'register' || phase === 'done') && (
         <section style={{ marginTop: 28 }}>
+          {event.admissionQrEnabled && (
+            <div style={{ ...cardStyle, padding: 14, marginBottom: 22 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24">
+                  <path
+                    d="M4 4h5v5H4zM15 4h5v5h-5zM4 15h5v5H4zM15 15h2v2h-2zM20 15h-1v1h1zM18 18h2v2h-2zM15 18h1v2h-3v-2h2z"
+                    fill={VIOLET}
+                  />
+                  <path d="M6.5 6.5h1v1h-1zM17.5 6.5h1v1h-1zM6.5 17.5h1v1h-1z" fill={VIOLET} />
+                </svg>
+                <span style={{ fontWeight: 800, fontSize: 15.5, flex: 1 }}>
+                  {uiText(locale, 'admissionQrTitle')}
+                </span>
+                <span
+                  style={{
+                    backgroundColor: admissionQr?.stored ? VIOLET : '#e5e7eb',
+                    color: admissionQr?.stored ? '#ffffff' : '#4b5563',
+                    borderRadius: 999,
+                    padding: '3px 11px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {admissionQr?.stored
+                    ? uiText(locale, 'admissionQrStored')
+                    : uiText(locale, 'admissionQrNotStored')}
+                </span>
+                {!admissionQr?.stored && !qrEditing && (
+                  <button
+                    onClick={() => {
+                      setQrFeedback(null);
+                      setQrEditing(true);
+                    }}
+                    style={{
+                      padding: '8px 14px',
+                      fontWeight: 700,
+                      fontSize: 13.5,
+                      backgroundColor: VIOLET,
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {uiText(locale, 'admissionQrRegisterButton')}
+                  </button>
+                )}
+                {admissionQr?.stored && !qrEditing && (
+                  <button
+                    onClick={() => setQrExpanded((v) => !v)}
+                    aria-expanded={qrExpanded}
+                    style={{
+                      padding: '8px 14px',
+                      fontWeight: 700,
+                      fontSize: 13.5,
+                      backgroundColor: VIOLET,
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 10,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {qrExpanded
+                      ? uiText(locale, 'admissionQrHideButton')
+                      : uiText(locale, 'admissionQrShowButton')}
+                  </button>
+                )}
+              </div>
+
+              {admissionQr?.stored && qrExpanded && !qrEditing && (
+                <>
+                  <div
+                    style={{
+                      marginTop: 14,
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: 14,
+                      padding: 14,
+                      display: 'flex',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <QRCodeSVG value={admissionQr.content ?? ''} size={208} />
+                  </div>
+                  <p
+                    style={{
+                      fontSize: 14.5,
+                      fontWeight: 800,
+                      color: VIOLET,
+                      textAlign: 'center',
+                      margin: '12px 0 0',
+                    }}
+                  >
+                    {uiText(locale, 'admissionQrShowNote')}
+                  </p>
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: '#64748b',
+                      textAlign: 'center',
+                      margin: '6px 0 0',
+                      wordBreak: 'break-all',
+                    }}
+                  >
+                    {admissionQr.content}
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                    <button
+                      onClick={() => {
+                        setQrFeedback(null);
+                        setQrEditing(true);
+                      }}
+                      disabled={qrBusy}
+                      style={{
+                        flex: 1,
+                        padding: '10px 12px',
+                        fontWeight: 700,
+                        fontSize: 13.5,
+                        backgroundColor: '#ffffff',
+                        color: VIOLET,
+                        border: `1px solid ${VIOLET}`,
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {uiText(locale, 'admissionQrRescanButton')}
+                    </button>
+                    <button
+                      onClick={() => void handleDeleteAdmissionQr()}
+                      disabled={qrBusy}
+                      style={{
+                        padding: '10px 16px',
+                        fontWeight: 700,
+                        fontSize: 13.5,
+                        backgroundColor: '#ffffff',
+                        color: '#b91c1c',
+                        border: '1px solid #fecaca',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {uiText(locale, 'admissionQrDeleteButton')}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {qrEditing && (
+                <>
+                  <p style={{ fontSize: 13, color: '#475569', margin: '10px 0 0' }}>
+                    {uiText(locale, 'admissionQrIntro')}
+                  </p>
+                  {!qrScanning && (
+                    <div
+                      aria-hidden="true"
+                      style={{
+                        position: 'relative',
+                        marginTop: 12,
+                        height: 180,
+                        borderRadius: 14,
+                        backgroundColor: '#101828',
+                        backgroundImage:
+                          'linear-gradient(rgba(255,255,255,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.055) 1px, transparent 1px)',
+                        backgroundSize: '26px 26px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 84,
+                          height: 84,
+                          border: '2px dashed rgba(255, 255, 255, 0.5)',
+                          borderRadius: 10,
+                        }}
+                      />
+                      <p
+                        style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          bottom: 10,
+                          fontSize: 12,
+                          color: 'rgba(255, 255, 255, 0.8)',
+                          textAlign: 'center',
+                          margin: 0,
+                          padding: '0 16px',
+                        }}
+                      >
+                        {uiText(locale, 'admissionQrScanHint')}
+                      </p>
+                    </div>
+                  )}
+                  <div
+                    id="admission-qr-reader"
+                    style={{
+                      width: '100%',
+                      marginTop: qrScanning ? 12 : 0,
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                    }}
+                  />
+                  {!qrScanning ? (
+                    <button
+                      onClick={() => void startQrCamera()}
+                      disabled={qrBusy}
+                      style={{ ...buttonStyle, marginTop: 12, opacity: qrBusy ? 0.6 : 1 }}
+                    >
+                      {uiText(locale, 'admissionQrCameraStart')}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => void stopQrCamera()}
+                      style={{
+                        ...buttonStyle,
+                        marginTop: 12,
+                        backgroundColor: '#ffffff',
+                        color: VIOLET,
+                        border: `1px solid ${VIOLET}`,
+                      }}
+                    >
+                      {uiText(locale, 'admissionQrCameraStop')}
+                    </button>
+                  )}
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginTop: 16 }}>
+                    {uiText(locale, 'admissionQrManualLabel')}
+                    <input
+                      style={inputStyle}
+                      type="text"
+                      value={qrManual}
+                      onChange={(e) => setQrManual(e.target.value)}
+                      placeholder={uiText(locale, 'admissionQrManualPlaceholder')}
+                    />
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+                    <button
+                      onClick={() => void saveAdmissionQrContent(qrManual)}
+                      disabled={qrBusy || !qrManual.trim()}
+                      style={{
+                        flex: 1,
+                        padding: '11px 12px',
+                        fontWeight: 700,
+                        fontSize: 14,
+                        backgroundColor: VIOLET,
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        opacity: qrBusy || !qrManual.trim() ? 0.6 : 1,
+                      }}
+                    >
+                      {uiText(locale, 'admissionQrSaveButton')}
+                    </button>
+                    <button
+                      onClick={() => {
+                        void stopQrCamera();
+                        setQrEditing(false);
+                        setQrManual('');
+                        setQrFeedback(null);
+                      }}
+                      style={{
+                        padding: '11px 14px',
+                        fontWeight: 700,
+                        fontSize: 14,
+                        background: 'none',
+                        color: '#475569',
+                        border: 'none',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {uiText(locale, 'admissionQrCancelButton')}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {qrFeedback && (
+                <p
+                  role="status"
+                  style={
+                    qrFeedback.error
+                      ? feedbackStyle
+                      : {
+                          marginTop: 12,
+                          fontSize: 14,
+                          backgroundColor: '#f5f3ff',
+                          border: '1px solid #ddd6fe',
+                          borderRadius: 10,
+                          padding: '9px 12px',
+                        }
+                  }
+                >
+                  {qrFeedback.text}
+                </p>
+              )}
+            </div>
+          )}
+
           {myClaims.length > 0 && (
             <>
               <h2

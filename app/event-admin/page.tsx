@@ -53,6 +53,7 @@ interface EventForm {
   resetMode: EventResetMode;
   resetTime: string;
   defaultLocale: Locale;
+  admissionQrEnabled: boolean;
   subscriberCap: string;
   backupRetentionDays: string;
   status: 'draft' | 'live';
@@ -65,6 +66,7 @@ const emptyForm: EventForm = {
   resetMode: 'full-daily',
   resetTime: '00:00',
   defaultLocale: 'ja',
+  admissionQrEnabled: false,
   subscriberCap: '50000',
   backupRetentionDays: '30',
   status: 'draft',
@@ -78,6 +80,7 @@ function toForm(event: EventConfig): EventForm {
     resetMode: event.resetMode,
     resetTime: event.resetTime,
     defaultLocale: event.defaultLocale,
+    admissionQrEnabled: event.admissionQrEnabled,
     subscriberCap: String(event.subscriberCap),
     backupRetentionDays: String(event.backupRetentionDays),
     status: event.status === 'live' ? 'live' : 'draft',
@@ -357,6 +360,7 @@ export default function EventAdminPage() {
       resetMode: form.resetMode,
       resetTime: form.resetTime,
       defaultLocale: form.defaultLocale,
+      admissionQrEnabled: form.admissionQrEnabled,
       // 購読者上限は契約枠（料金の軸）なので主催者からは送信しない。運営側のみ変更可。
       backupRetentionDays: Number(form.backupRetentionDays),
       ...(selectedId ? { status: form.status } : {}),
@@ -698,6 +702,19 @@ export default function EventAdminPage() {
             {adminText(locale, 'defaultLocaleNote')}
           </span>
         </label>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
+            <input
+              type="checkbox"
+              checked={form.admissionQrEnabled}
+              onChange={(e) => setForm({ ...form, admissionQrEnabled: e.target.checked })}
+            />{' '}
+            {adminText(locale, 'admissionQrLabel')}
+          </label>
+          <span style={{ fontSize: 12, color: '#64748b' }}>
+            {adminText(locale, 'admissionQrNote')}
+          </span>
+        </div>
         <div style={{ marginBottom: 12 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>{adminText(locale, 'subscriberCapLabel')}</span>
           <div style={{ fontSize: 14, marginTop: 4 }}>

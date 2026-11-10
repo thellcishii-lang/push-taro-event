@@ -17,6 +17,7 @@ function eventWith(status: EventConfig['status']): EventConfig {
     resetTime: '00:00',
     subscriberCap: 50000,
     defaultLocale: 'ja',
+    admissionQrEnabled: false,
     couponCap: 100,
     backupRetentionDays: 30,
     status,

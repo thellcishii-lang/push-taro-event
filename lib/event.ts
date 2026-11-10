@@ -36,6 +36,13 @@ export interface EventConfig {
   /** イベントのデフォルト言語（主催者が設定）。個人の言語選択がこれを上書きする */
   defaultLocale: Locale;
   /**
+   * 入場用QRの取り込みを有効にするか（主催者が設定。既定オフ）。
+   * オンにすると、来場者が主催者側の既存システム（事前登録・チケット等）から
+   * 受け取った入場用QRを自分の画面で読み込んで購読者レコードに保存し、
+   * 入場時に表示できる。オフの間は来場者画面に何も出ず、保存もできない。
+   */
+  admissionQrEnabled: boolean;
+  /**
    * クーポン上限（イベント全体の件数）。購読者上限と同じく契約枠の軸なので、
    * 変更は運営側のみ。既定は MAX_COUPONS_PER_EVENT。
    */
@@ -92,6 +99,7 @@ export interface CreateEventInput {
   resetTime?: string;
   subscriberCap?: number;
   defaultLocale?: Locale;
+  admissionQrEnabled?: boolean;
   couponCap?: number;
   backupRetentionDays?: number;
 }
