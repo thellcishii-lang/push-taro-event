@@ -2,7 +2,10 @@
 
 // app/e/[eventId]/redeem/page.tsx
 // Push-taro EVENT の出店者用 消込専用画面。
-// メール+パスワードでログインし、自社のクーポンだけを消し込む。
+// メール+パスワード（イベント専用アクセスコード）でログインし、自社の
+// クーポンだけを消し込む。ログインはサーバー照合（exhibitor-login API）が
+// 発行するカスタムトークンでセッション化する。出店者は Firebase Auth の
+// アカウントを持たない（Auth は主催者だけ）。
 // 他社のクーポンかどうかはサーバー側（消込API）が判定するので、
 // ここで他社のQRを読んでも 403 で弾かれる。
 // カメラ読み取りの作法は本家の店舗画面（app/shop）に合わせている。
@@ -18,7 +21,7 @@ import { useParams } from 'next/navigation';
 import {
   User,
   onAuthStateChanged,
-  signInWithEmailAndPassword,
+  signInWithCustomToken,
   signOut,
 } from 'firebase/auth';
 import { Html5Qrcode } from 'html5-qrcode';
@@ -375,12 +378,50 @@ export default function ExhibitorRedeemPage() {
 
   const handleLogin = async () => {
     setBusy(true);
+    setResult(null);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // メール+パスワード（コード）をサーバーで照合し、返ってきた
+      // カスタムトークンでこのイベント専用のセッションを作る。
+      const res = await fetch(`/api/events/${eventId}/exhibitor-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.customToken !== 'string') {
+        throw new Error('login failed');
+      }
+      await signInWithCustomToken(auth, data.customToken);
     } catch {
       setResult({ ok: false, text: redeemText(locale, 'loginFailed'), at: new Date() });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [forgotMessage, setForgotMessage] = useState('');
+
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setForgotMessage(redeemText(locale, 'forgotPasswordNeedEmail'));
+      return;
+    }
+    setForgotBusy(true);
+    setForgotMessage('');
+    try {
+      // 登録の有無は応答に出ない（常に汎用の完了文になる）。
+      const res = await fetch(`/api/events/${eventId}/exhibitor-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error('request failed');
+      setForgotMessage(redeemText(locale, 'forgotPasswordDone'));
+    } catch {
+      setForgotMessage(redeemText(locale, 'forgotPasswordFailed'));
+    } finally {
+      setForgotBusy(false);
     }
   };
 
@@ -489,6 +530,30 @@ export default function ExhibitorRedeemPage() {
           >
             {redeemText(locale, 'loginButton')}
           </button>
+          <button
+            onClick={() => void handleForgotPassword()}
+            disabled={forgotBusy}
+            style={{
+              display: 'block',
+              margin: '14px auto 0',
+              padding: 0,
+              background: 'none',
+              border: 'none',
+              color: VIOLET,
+              fontSize: 13.5,
+              fontWeight: 600,
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              opacity: forgotBusy ? 0.6 : 1,
+            }}
+          >
+            {redeemText(locale, 'forgotPasswordLink')}
+          </button>
+          {forgotMessage && (
+            <p style={{ fontSize: 13.5, color: '#334155', marginTop: 10, textAlign: 'center' }}>
+              {forgotMessage}
+            </p>
+          )}
         </section>
         {resultCard}
       </main>

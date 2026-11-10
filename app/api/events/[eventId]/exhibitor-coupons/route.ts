@@ -3,8 +3,8 @@
 // タイトル・説明文は出店者の言語で返す（作成時の自動翻訳を使用）。
 // 取得・消込件数も付ける（効果測定用）。件数は自社の取得記録だけから数える。
 import { NextResponse } from 'next/server';
-import { getUidFromRequest } from '@/lib/event-auth';
-import { countClaimsByExhibitor, findExhibitorByAuthUid, listCoupons } from '@/lib/event-coupon';
+import { getRequestAuth } from '@/lib/event-auth';
+import { countClaimsByExhibitor, getExhibitor, listCoupons } from '@/lib/event-coupon';
 import { getEvent } from '@/lib/event-store';
 import { pickLocalizedText } from '@/lib/i18n';
 
@@ -15,11 +15,17 @@ export async function GET(
   { params }: { params: Promise<{ eventId: string }> },
 ) {
   const { eventId } = await params;
-  const uid = await getUidFromRequest(request);
-  if (!uid) {
+  const auth = await getRequestAuth(request);
+  if (!auth) {
     return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
   }
-  const exhibitor = await findExhibitorByAuthUid(eventId, uid);
+  if (!auth.exhibitor || auth.exhibitor.eventId !== eventId) {
+    return NextResponse.json(
+      { error: 'このイベントの出店者として登録されていません' },
+      { status: 403 },
+    );
+  }
+  const exhibitor = await getExhibitor(eventId, auth.exhibitor.exhibitorId);
   if (!exhibitor) {
     return NextResponse.json(
       { error: 'このイベントの出店者として登録されていません' },

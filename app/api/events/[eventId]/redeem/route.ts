@@ -1,13 +1,14 @@
 // app/api/events/[eventId]/redeem/route.ts
 // クーポン消込。実行できるのは次の2者だけ（サーバー側で判定する）:
-// - 出店者ログイン（メール+パスワード）: 自社クーポンのみ。他社は403。
+// - 出店者セッション（イベント専用コードで発行したカスタムトークン）:
+//   自社クーポンのみ。他社は403。
 // - 主催者（イベント所有者）: 管理画面側の消込として全クーポン可。
 import { NextResponse } from 'next/server';
-import { getUidFromRequest } from '@/lib/event-auth';
+import { getRequestAuth } from '@/lib/event-auth';
 import { getEvent } from '@/lib/event-store';
 import {
   RedemptionActor,
-  findExhibitorByAuthUid,
+  getExhibitor,
   redeemClaim,
 } from '@/lib/event-coupon';
 
@@ -19,8 +20,8 @@ export async function POST(
 ) {
   const { eventId } = await params;
 
-  const uid = await getUidFromRequest(request);
-  if (!uid) {
+  const auth = await getRequestAuth(request);
+  if (!auth) {
     return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
   }
   const event = await getEvent(eventId);
@@ -29,10 +30,10 @@ export async function POST(
   }
 
   let actor: RedemptionActor;
-  if (event.ownerUid === uid) {
+  if (event.ownerUid === auth.uid) {
     actor = { type: 'organizer' };
-  } else {
-    const exhibitor = await findExhibitorByAuthUid(eventId, uid);
+  } else if (auth.exhibitor && auth.exhibitor.eventId === eventId) {
+    const exhibitor = await getExhibitor(eventId, auth.exhibitor.exhibitorId);
     if (!exhibitor) {
       return NextResponse.json(
         { error: 'このイベントの出店者として登録されていません' },
@@ -40,6 +41,11 @@ export async function POST(
       );
     }
     actor = { type: 'exhibitor', exhibitorId: exhibitor.id };
+  } else {
+    return NextResponse.json(
+      { error: 'このイベントの出店者として登録されていません' },
+      { status: 403 },
+    );
   }
 
   let body: Record<string, unknown>;

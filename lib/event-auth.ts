@@ -3,6 +3,7 @@
 // 既存の店舗向け API（coupon-history 等）と同じ方式:
 // Authorization: Bearer <Firebase IDトークン> を検証して uid を返す。
 import { authAdmin } from './firebase-admin';
+import { exhibitorSessionUid } from './exhibitor-access';
 
 export async function getUidFromRequest(
   request: Request,
@@ -12,6 +13,49 @@ export async function getUidFromRequest(
   try {
     const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
     return decoded.uid;
+  } catch {
+    return null;
+  }
+}
+
+/** 出店者セッション（カスタムトークン）のクレームから復元した所属。 */
+export interface ExhibitorSession {
+  eventId: string;
+  exhibitorId: string;
+}
+
+export interface RequestAuth {
+  uid: string;
+  /** 出店者セッションなら所属イベントと出店者 ID。通常ログインは null。 */
+  exhibitor: ExhibitorSession | null;
+}
+
+/**
+ * ID トークンを検証し、uid と出店者セッション情報を返す。
+ * 出店者セッションは、ログイン API が発行したカスタムトークン由来のものだけを
+ * 認める：role クレームが 'exhibitor' で、eventId / exhibitorId クレームと
+ * 合成 uid が一致する場合に限る（自称クレームだけでは通さない）。
+ */
+export async function getRequestAuth(
+  request: Request,
+): Promise<RequestAuth | null> {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const decoded = await authAdmin.verifyIdToken(authHeader.slice(7));
+    const claims = decoded as unknown as Record<string, unknown>;
+    let exhibitor: ExhibitorSession | null = null;
+    const claimEventId = claims.eventId;
+    const claimExhibitorId = claims.exhibitorId;
+    if (
+      claims.role === 'exhibitor' &&
+      typeof claimEventId === 'string' &&
+      typeof claimExhibitorId === 'string' &&
+      decoded.uid === exhibitorSessionUid(claimEventId, claimExhibitorId)
+    ) {
+      exhibitor = { eventId: claimEventId, exhibitorId: claimExhibitorId };
+    }
+    return { uid: decoded.uid, exhibitor };
   } catch {
     return null;
   }
