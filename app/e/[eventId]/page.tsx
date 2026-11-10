@@ -10,6 +10,10 @@
 // アコーディオンにする（100件あっても縦に伸びないように）。
 // 取得状態は画面を開いている間15秒ごと＋タブ復帰時に再取得し、
 // 消込が手動リロードなしで「使用済み」に切り替わるようにしている。
+// 見た目は承認済みモック（来場者 v2）準拠: ブランド行＋薄紫のイベント
+// カード（言語はピル選択）、取得済みカードはQR常時表示、登録フェーズでは
+// 画面下に固定したプッシュ有効化バナーが登録ボタンになる。
+// 結果・エラーの文は、操作した場所のすぐ近くに出す（ページ末尾には出さない）。
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -21,7 +25,6 @@ import {
 } from 'firebase/auth';
 import { auth, requestFCMToken } from '@/lib/firebase-client';
 import {
-  LOCALE_LABELS,
   SUPPORTED_LOCALES,
   resolveLocale,
   type Locale,
@@ -82,6 +85,18 @@ function normalizePhoneNumber(value: string): string {
 
 const VIOLET = '#6D28D9';
 const VIOLET_BRIGHT = '#7C3AED';
+const CLAIM_BLUE = '#2563eb';
+const INK = '#17122b';
+const HERO_GRADIENT = 'linear-gradient(135deg, #e7dcfd, #d2c0f8)';
+const CARD_GRADIENT = 'linear-gradient(180deg, #f3efff, #e9e2fd)';
+
+// モックの言語ピルは短い表記（EN など）。選択の保存・送信は従来どおり locale で行う。
+const PILL_LABELS: Record<Locale, string> = {
+  ja: '日本語',
+  en: 'EN',
+  zh: '中文',
+  ko: '한국어',
+};
 
 const containerStyle: React.CSSProperties = {
   padding: '16px 16px 32px',
@@ -97,7 +112,7 @@ const containerStyle: React.CSSProperties = {
 const cardStyle: React.CSSProperties = {
   backgroundColor: '#ffffff',
   border: '1px solid #e2e8f0',
-  borderRadius: 12,
+  borderRadius: 16,
   boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
 };
 
@@ -125,6 +140,40 @@ const buttonStyle: React.CSSProperties = {
   borderRadius: 10,
   cursor: 'pointer',
 };
+
+const feedbackStyle: React.CSSProperties = {
+  marginTop: 12,
+  fontSize: 14,
+  color: '#b91c1c',
+  whiteSpace: 'pre-wrap',
+};
+
+function PinLogo() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        background: `linear-gradient(135deg, ${VIOLET_BRIGHT}, ${VIOLET})`,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        boxShadow: '0 3px 8px rgba(109, 40, 217, 0.35)',
+      }}
+    >
+      <svg width="25" height="25" viewBox="0 0 24 24">
+        <path
+          d="M12 21.5s-7.2-5.6-7.2-11.1a7.2 7.2 0 1 1 14.4 0c0 5.5-7.2 11.1-7.2 11.1Z"
+          fill="#ffffff"
+        />
+        <circle cx="12" cy="9.7" r="2.7" fill={VIOLET} />
+      </svg>
+    </div>
+  );
+}
 
 export default function EventVisitorPage() {
   const params = useParams<{ eventId: string }>();
@@ -399,7 +448,11 @@ export default function EventVisitorPage() {
   if (phase === 'not-found') {
     return (
       <main style={containerStyle}>
-        <h1 style={{ fontSize: 20, fontWeight: 800 }}>{uiText(locale, 'notFoundTitle')}</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <PinLogo />
+          <p style={{ fontSize: 19, fontWeight: 900, color: INK, margin: 0 }}>Push-taro EVENT</p>
+        </div>
+        <h1 style={{ fontSize: 20, fontWeight: 800, marginTop: 24 }}>{uiText(locale, 'notFoundTitle')}</h1>
         <p style={{ fontSize: 14 }}>{uiText(locale, 'notFoundBody')}</p>
       </main>
     );
@@ -411,43 +464,105 @@ export default function EventVisitorPage() {
   const firstUnusedClaim = myClaims.find((c) => c.status === 'claimed');
   const effectiveOpenClaimId =
     openClaimId === undefined ? (firstUnusedClaim?.claimId ?? null) : openClaimId;
+  // 取得済みカードの対象文はカタログ側の説明文から引く（取得APIは説明を持たない）
+  const couponById = new Map(coupons.map((c) => [c.id, c]));
+  const totalCompanies = new Set(coupons.map((c) => c.exhibitorName)).size;
+  const endDateLabel = event.endDate.replaceAll('-', '.');
+  const daysLeft = Math.ceil(
+    (new Date(`${event.endDate}T23:59:59`).getTime() - Date.now()) / 86_400_000,
+  );
 
   return (
-    <main style={containerStyle}>
-      <header
+    <main
+      style={{
+        ...containerStyle,
+        // 登録フェーズでは下部固定バナーに隠れないよう余白を確保する
+        paddingBottom: phase === 'register' ? 148 : 32,
+      }}
+    >
+      <div
         style={{
-          background: `linear-gradient(135deg, ${VIOLET_BRIGHT}, ${VIOLET})`,
-          borderRadius: 16,
-          padding: '18px 16px',
-          color: '#ffffff',
-          boxShadow: '0 4px 14px rgba(109, 40, 217, 0.35)',
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 8,
         }}
       >
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>{event.name}</h1>
-        <p style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.85)', margin: '6px 0 0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <PinLogo />
+          <div>
+            <p
+              style={{
+                fontSize: 20,
+                fontWeight: 900,
+                color: INK,
+                margin: 0,
+                letterSpacing: -0.3,
+                lineHeight: 1.15,
+              }}
+            >
+              Push-taro EVENT
+            </p>
+            <p style={{ fontSize: 12.5, color: '#475569', margin: '2px 0 0' }}>
+              {uiText(locale, 'visitorPageLabel')}
+            </p>
+          </div>
+        </div>
+        <svg
+          aria-hidden="true"
+          width="26"
+          height="26"
+          viewBox="0 0 24 24"
+          style={{ flexShrink: 0, marginTop: 4, opacity: 0.75 }}
+        >
+          <path
+            d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58ZM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6Z"
+            fill="#3f3d56"
+          />
+        </svg>
+      </div>
+
+      <header
+        style={{
+          background: HERO_GRADIENT,
+          borderRadius: 18,
+          padding: '18px 16px',
+          marginTop: 14,
+          boxShadow: '0 4px 14px rgba(109, 40, 217, 0.18)',
+        }}
+      >
+        <h1 style={{ fontSize: 23, fontWeight: 800, margin: 0, color: INK }}>{event.name}</h1>
+        <p style={{ fontSize: 13, color: '#4b4560', margin: '6px 0 0' }}>
           {uiText(locale, 'period', { start: event.startDate, end: event.endDate })}
         </p>
-        <div style={{ marginTop: 10 }}>
-          <select
-            aria-label={uiText(locale, 'language')}
-            value={locale}
-            onChange={(e) => void handleLocaleChange(e.target.value as Locale)}
-            style={{
-              padding: '6px 10px',
-              fontSize: 14,
-              borderRadius: 999,
-              border: 'none',
-              backgroundColor: '#ffffff',
-              color: '#0f172a',
-              fontWeight: 600,
-            }}
-          >
-            {SUPPORTED_LOCALES.map((l) => (
-              <option key={l} value={l}>
-                {LOCALE_LABELS[l]}
-              </option>
-            ))}
-          </select>
+        <div
+          role="group"
+          aria-label={uiText(locale, 'language')}
+          style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}
+        >
+          {SUPPORTED_LOCALES.map((l) => {
+            const selected = l === locale;
+            return (
+              <button
+                key={l}
+                onClick={() => void handleLocaleChange(l)}
+                aria-pressed={selected}
+                style={{
+                  padding: '7px 16px',
+                  fontSize: 14,
+                  borderRadius: 999,
+                  border: selected ? 'none' : '1px solid rgba(76, 29, 149, 0.28)',
+                  backgroundColor: selected ? VIOLET : '#ffffff',
+                  color: selected ? '#ffffff' : '#2e2a3f',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: selected ? 'none' : '0 1px 2px rgba(23, 18, 43, 0.12)',
+                }}
+              >
+                {PILL_LABELS[l]}
+              </button>
+            );
+          })}
         </div>
       </header>
 
@@ -502,6 +617,7 @@ export default function EventVisitorPage() {
           <button style={buttonStyle} onClick={handleSendCode} disabled={busy}>
             {uiText(locale, 'sendCode')}
           </button>
+          {message && <p style={feedbackStyle}>{message}</p>}
         </section>
       )}
 
@@ -521,15 +637,7 @@ export default function EventVisitorPage() {
           <button style={buttonStyle} onClick={handleConfirmCode} disabled={busy}>
             {uiText(locale, 'confirmCode')}
           </button>
-        </section>
-      )}
-
-      {phase === 'register' && (
-        <section style={{ ...cardStyle, marginTop: 20, padding: 16 }}>
-          <p style={{ fontSize: 14, margin: 0 }}>{uiText(locale, 'verifiedIntro')}</p>
-          <button style={buttonStyle} onClick={handleRegister} disabled={busy}>
-            {uiText(locale, 'registerButton')}
-          </button>
+          {message && <p style={feedbackStyle}>{message}</p>}
         </section>
       )}
 
@@ -547,64 +655,64 @@ export default function EventVisitorPage() {
 
       {user && (phase === 'register' || phase === 'done') && (
         <section style={{ marginTop: 28 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800 }}>{uiText(locale, 'couponsTitle')}</h2>
-
           {myClaims.length > 0 && (
             <>
-              <h3
+              <h2
                 style={{
-                  fontSize: 15,
-                  fontWeight: 700,
-                  marginTop: 16,
+                  fontSize: 17,
+                  fontWeight: 800,
+                  margin: 0,
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'baseline',
+                  alignItems: 'center',
+                  gap: 8,
                 }}
               >
-                <span>{uiText(locale, 'myCouponsTitle')}</span>
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24">
+                  <rect x="4" y="3" width="16" height="18" rx="2.5" fill="none" stroke={VIOLET} strokeWidth="2" />
+                  <path d="M8 8.5h8M8 12.5h8M8 16.5h5" stroke={VIOLET} strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <span style={{ flex: 1 }}>{uiText(locale, 'myCouponsTitle')}</span>
                 <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>
                   {uiText(locale, 'itemsCount', { count: String(myClaims.length) })}
                 </span>
-              </h3>
-              {myClaims.map((claim) =>
-                claim.status === 'redeemed' ? (
+              </h2>
+              {myClaims.map((claim) => {
+                const catalogCoupon = couponById.get(claim.couponId);
+                const detailParts = [
+                  catalogCoupon?.description,
+                  uiText(locale, 'validUntil', { date: endDateLabel }),
+                ].filter((part): part is string => Boolean(part));
+                return claim.status === 'redeemed' ? (
                   <article
                     key={claim.claimId}
                     style={{
-                      ...cardStyle,
-                      backgroundColor: '#f1f5f9',
-                      padding: 12,
-                      marginTop: 10,
+                      backgroundColor: '#e9edf2',
+                      borderRadius: 16,
+                      padding: 16,
+                      marginTop: 12,
                     }}
                   >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ fontWeight: 700, fontSize: 15, color: '#64748b' }}>
-                        {claim.title}
-                      </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span
                         style={{
-                          flexShrink: 0,
-                          border: '2px solid #94a3b8',
-                          color: '#64748b',
+                          backgroundColor: '#6b7280',
+                          color: '#ffffff',
                           borderRadius: 6,
-                          padding: '2px 10px',
-                          fontWeight: 800,
-                          fontSize: 13,
-                          transform: 'rotate(-6deg)',
+                          padding: '3px 10px',
+                          fontWeight: 700,
+                          fontSize: 12,
                         }}
                       >
                         {uiText(locale, 'usedStamp')}
                       </span>
+                      <span style={{ fontSize: 13, color: '#6b7280' }}>
+                        🏢 {claim.exhibitorName}
+                      </span>
                     </div>
-                    <div style={{ fontSize: 12, color: '#94a3b8' }}>{claim.exhibitorName}</div>
-                    <p style={{ fontSize: 13, marginTop: 8, color: '#64748b' }}>
+                    <div style={{ fontWeight: 800, fontSize: 16, color: '#4b5563', marginTop: 8 }}>
+                      {claim.title}
+                    </div>
+                    <p style={{ fontSize: 13, margin: '6px 0 0', color: '#6b7280' }}>
                       {uiText(locale, 'redeemedNote')}
                     </p>
                   </article>
@@ -612,74 +720,192 @@ export default function EventVisitorPage() {
                   <article
                     key={claim.claimId}
                     style={{
-                      ...cardStyle,
-                      backgroundColor: '#f5f3ff',
+                      background: CARD_GRADIENT,
                       border: '1px solid #ddd6fe',
-                      padding: 12,
-                      marginTop: 10,
+                      borderRadius: 16,
+                      padding: 16,
+                      marginTop: 12,
+                      boxShadow: '0 2px 8px rgba(109, 40, 217, 0.12)',
                     }}
                   >
-                    <div style={{ fontWeight: 700, fontSize: 15 }}>{claim.title}</div>
-                    <div style={{ fontSize: 12, color: '#475569' }}>{claim.exhibitorName}</div>
-                    <button
-                      onClick={() =>
-                        setOpenClaimId(
-                          effectiveOpenClaimId === claim.claimId ? null : claim.claimId,
-                        )
-                      }
-                      aria-expanded={effectiveOpenClaimId === claim.claimId}
-                      style={{
-                        marginTop: 10,
-                        padding: '8px 16px',
-                        fontWeight: 700,
-                        fontSize: 14,
-                        backgroundColor: VIOLET,
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: 10,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {effectiveOpenClaimId === claim.claimId
-                        ? uiText(locale, 'hideQr')
-                        : uiText(locale, 'showQr')}
-                    </button>
-                    {effectiveOpenClaimId === claim.claimId && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          backgroundColor: CLAIM_BLUE,
+                          color: '#ffffff',
+                          borderRadius: 6,
+                          padding: '3px 10px',
+                          fontWeight: 700,
+                          fontSize: 12,
+                        }}
+                      >
+                        {uiText(locale, 'claimedBadge')}
+                      </span>
+                      <span style={{ fontSize: 13, color: '#475569' }}>
+                        🏢 {claim.exhibitorName}
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: 17, marginTop: 8 }}>{claim.title}</div>
+                    {detailParts.length > 0 && (
+                      <p style={{ fontSize: 12.5, color: '#475569', margin: '4px 0 0' }}>
+                        {detailParts.join(' / ')}
+                      </p>
+                    )}
+                    {effectiveOpenClaimId === claim.claimId ? (
                       <>
-                        <p style={{ fontSize: 13, marginTop: 12 }}>
-                          {uiText(locale, 'showQrNote')}
-                        </p>
                         <div
                           style={{
-                            marginTop: 8,
-                            textAlign: 'center',
+                            marginTop: 14,
                             backgroundColor: '#ffffff',
-                            borderRadius: 12,
-                            padding: 12,
+                            borderRadius: 14,
+                            padding: 14,
+                            display: 'flex',
+                            justifyContent: 'center',
                           }}
                         >
-                          <QRCodeSVG value={claim.claimId} size={160} />
+                          <QRCodeSVG value={claim.claimId} size={176} />
+                        </div>
+                        <p
+                          style={{
+                            fontSize: 14.5,
+                            fontWeight: 800,
+                            color: VIOLET,
+                            textAlign: 'center',
+                            margin: '12px 0 0',
+                          }}
+                        >
+                          {uiText(locale, 'showQrNote')}
+                        </p>
+                        {daysLeft >= 0 && (
+                          <p
+                            style={{
+                              fontSize: 12.5,
+                              color: '#475569',
+                              textAlign: 'center',
+                              margin: '4px 0 0',
+                            }}
+                          >
+                            {uiText(locale, 'daysLeft', { days: String(daysLeft) })}
+                          </p>
+                        )}
+                        <div style={{ textAlign: 'center' }}>
+                          <button
+                            onClick={() => setOpenClaimId(null)}
+                            aria-expanded={true}
+                            style={{
+                              marginTop: 10,
+                              padding: '6px 14px',
+                              fontWeight: 700,
+                              fontSize: 13,
+                              background: 'none',
+                              color: VIOLET,
+                              border: 'none',
+                              cursor: 'pointer',
+                              textDecoration: 'underline',
+                            }}
+                          >
+                            {uiText(locale, 'hideQr')}
+                          </button>
                         </div>
                       </>
+                    ) : (
+                      <button
+                        onClick={() => setOpenClaimId(claim.claimId)}
+                        aria-expanded={false}
+                        style={{
+                          marginTop: 12,
+                          padding: '10px 18px',
+                          fontWeight: 700,
+                          fontSize: 14,
+                          backgroundColor: VIOLET,
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 10,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {uiText(locale, 'showQr')}
+                      </button>
                     )}
                   </article>
-                ),
-              )}
+                );
+              })}
             </>
           )}
 
-          <input
-            style={{ ...inputStyle, marginTop: 20 }}
-            type="search"
-            value={couponQuery}
-            onChange={(e) => setCouponQuery(e.target.value)}
-            placeholder={uiText(locale, 'searchPlaceholder')}
-            aria-label={uiText(locale, 'searchPlaceholder')}
-          />
+          <div style={{ position: 'relative', marginTop: 22 }}>
+            <span
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                left: 14,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                fontSize: 15,
+                color: '#64748b',
+                pointerEvents: 'none',
+              }}
+            >
+              🔍
+            </span>
+            <input
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '12px 14px 12px 40px',
+                border: 'none',
+                borderRadius: 999,
+                fontSize: 15,
+                backgroundColor: '#edf0f4',
+                boxSizing: 'border-box',
+                color: '#0f172a',
+              }}
+              type="search"
+              value={couponQuery}
+              onChange={(e) => setCouponQuery(e.target.value)}
+              placeholder={uiText(locale, 'searchPlaceholder')}
+              aria-label={uiText(locale, 'searchPlaceholder')}
+            />
+          </div>
 
-          <h3 style={{ fontSize: 15, fontWeight: 700, marginTop: 20 }}>
-            {uiText(locale, 'catalogTitle')}
+          <h3
+            style={{
+              fontSize: 17,
+              fontWeight: 800,
+              marginTop: 22,
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 8,
+            }}
+          >
+            <span aria-hidden="true" style={{ color: VIOLET, fontSize: 15 }}>
+              ▾
+            </span>
+            <span style={{ flex: 1 }}>{uiText(locale, 'catalogTitle')}</span>
+            {coupons.length > 0 && (
+              <span style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+                {uiText(locale, 'catalogSummary', {
+                  companies: String(totalCompanies),
+                  count: String(coupons.length),
+                })}
+              </span>
+            )}
           </h3>
+          {couponMessage && (
+            <p
+              role="status"
+              style={{
+                marginTop: 10,
+                fontSize: 14,
+                backgroundColor: '#f5f3ff',
+                border: '1px solid #ddd6fe',
+                borderRadius: 10,
+                padding: '9px 12px',
+              }}
+            >
+              {couponMessage}
+            </p>
+          )}
           {couponGroups.length === 0 && (
             <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>
               {uiText(locale, 'noCoupons')}
@@ -688,7 +914,7 @@ export default function EventVisitorPage() {
           {couponGroups.map((group) => {
             const open = searching || openGroups.has(group.exhibitorName);
             return (
-              <div key={group.exhibitorName} style={{ ...cardStyle, marginTop: 10, overflow: 'hidden' }}>
+              <div key={group.exhibitorName} style={{ ...cardStyle, marginTop: 12, overflow: 'hidden' }}>
                 <button
                   onClick={() => toggleGroup(group.exhibitorName)}
                   aria-expanded={open}
@@ -697,7 +923,7 @@ export default function EventVisitorPage() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: 8,
-                    padding: '14px',
+                    padding: '15px 14px',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
@@ -705,15 +931,15 @@ export default function EventVisitorPage() {
                     boxSizing: 'border-box',
                   }}
                 >
-                  <span style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>
+                  <span style={{ fontWeight: 800, fontSize: 16, flex: 1 }}>
                     {group.exhibitorName}
                   </span>
                   <span
                     style={{
-                      backgroundColor: '#ede9fe',
-                      color: VIOLET,
+                      backgroundColor: open ? VIOLET : '#e5e7eb',
+                      color: open ? '#ffffff' : '#4b5563',
                       borderRadius: 999,
-                      padding: '2px 10px',
+                      padding: '3px 11px',
                       fontSize: 12,
                       fontWeight: 700,
                       whiteSpace: 'nowrap',
@@ -721,7 +947,17 @@ export default function EventVisitorPage() {
                   >
                     {uiText(locale, 'couponCount', { count: String(group.coupons.length) })}
                   </span>
-                  <span style={{ color: VIOLET, fontWeight: 800 }}>{open ? '▾' : '▸'}</span>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      color: open ? VIOLET : '#9ca3af',
+                      fontWeight: 800,
+                      fontSize: open ? 15 : 20,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {open ? '▾' : '›'}
+                  </span>
                 </button>
                 {open &&
                   group.coupons.map((coupon) => {
@@ -729,45 +965,151 @@ export default function EventVisitorPage() {
                     return (
                       <div
                         key={coupon.id}
-                        style={{ padding: '12px 14px', borderTop: '1px solid #f1f5f9' }}
+                        style={{ padding: '13px 14px 15px', borderTop: '1px solid #f1f5f9' }}
                       >
-                        <div style={{ fontWeight: 700, fontSize: 15 }}>{coupon.title}</div>
-                        {coupon.description && (
-                          <p style={{ fontSize: 13, marginTop: 4 }}>{coupon.description}</p>
+                        {coupon.keywords[0] && (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              backgroundColor: VIOLET_BRIGHT,
+                              color: '#ffffff',
+                              borderRadius: 6,
+                              padding: '3px 10px',
+                              fontWeight: 700,
+                              fontSize: 12,
+                            }}
+                          >
+                            {coupon.keywords[0]}
+                          </span>
                         )}
-                        <button
-                          onClick={() => void handleClaim(coupon.id)}
-                          disabled={busy || claim !== undefined}
-                          style={{
-                            marginTop: 8,
-                            padding: '8px 16px',
-                            fontWeight: 700,
-                            fontSize: 14,
-                            borderRadius: 10,
-                            border: 'none',
-                            backgroundColor: claim ? '#e2e8f0' : VIOLET,
-                            color: claim ? '#64748b' : '#ffffff',
-                            cursor: claim ? 'default' : 'pointer',
-                          }}
-                        >
-                          {claim
-                            ? claim.status === 'redeemed'
-                              ? uiText(locale, 'redeemedButton')
-                              : uiText(locale, 'claimedButton')
-                            : uiText(locale, 'claimButton')}
-                        </button>
+                        <div style={{ fontWeight: 800, fontSize: 16, marginTop: coupon.keywords[0] ? 7 : 0 }}>
+                          {coupon.title}
+                        </div>
+                        {coupon.description && (
+                          <p style={{ fontSize: 13, color: '#475569', marginTop: 4 }}>
+                            {coupon.description}
+                          </p>
+                        )}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                          <button
+                            onClick={() => void handleClaim(coupon.id)}
+                            disabled={busy || claim !== undefined}
+                            style={{
+                              padding: '10px 22px',
+                              fontWeight: 700,
+                              fontSize: 15,
+                              borderRadius: 10,
+                              border: 'none',
+                              backgroundColor: claim ? '#e2e8f0' : CLAIM_BLUE,
+                              color: claim ? '#64748b' : '#ffffff',
+                              cursor: claim ? 'default' : 'pointer',
+                            }}
+                          >
+                            {claim
+                              ? claim.status === 'redeemed'
+                                ? uiText(locale, 'redeemedButton')
+                                : uiText(locale, 'claimedButton')
+                              : uiText(locale, 'claimButton')}
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
               </div>
             );
           })}
-          {couponMessage && <p style={{ marginTop: 12, fontSize: 14 }}>{couponMessage}</p>}
         </section>
       )}
 
-      {message && (
-        <p style={{ marginTop: 16, fontSize: 14, color: '#b91c1c', whiteSpace: 'pre-wrap' }}>{message}</p>
+      {phase === 'register' && (
+        <div
+          style={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 20,
+          }}
+        >
+          <div style={{ maxWidth: 480, margin: '0 auto', padding: '0 16px 14px' }}>
+            {message && (
+              <p
+                style={{
+                  ...feedbackStyle,
+                  marginTop: 0,
+                  marginBottom: 10,
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #fecaca',
+                  borderRadius: 10,
+                  padding: '9px 12px',
+                }}
+              >
+                {message}
+              </p>
+            )}
+            <div
+              style={{
+                background: HERO_GRADIENT,
+                borderRadius: 18,
+                padding: '14px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                boxShadow: '0 8px 22px rgba(109, 40, 217, 0.28)',
+              }}
+            >
+              <div
+                aria-hidden="true"
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: '50%',
+                  border: `2px solid ${VIOLET}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  backgroundColor: 'rgba(255, 255, 255, 0.55)',
+                }}
+              >
+                <svg width="23" height="23" viewBox="0 0 24 24">
+                  <path
+                    d="M18 9.2a6 6 0 1 0-12 0c0 5.4-2.3 6.8-2.3 6.8h16.6S18 14.6 18 9.2Z"
+                    fill={VIOLET}
+                  />
+                  <path d="M10.1 19.4a2 2 0 0 0 3.8 0" fill={VIOLET} />
+                </svg>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 15.5, fontWeight: 800, color: INK, margin: 0 }}>
+                  {uiText(locale, 'pushBannerTitle')}
+                </p>
+                <p style={{ fontSize: 12, color: '#4b4560', margin: '3px 0 0' }}>
+                  {uiText(locale, 'pushBannerBody')}
+                </p>
+              </div>
+              <button
+                onClick={handleRegister}
+                disabled={busy}
+                style={{
+                  padding: '12px 16px',
+                  fontWeight: 800,
+                  fontSize: 15,
+                  backgroundColor: VIOLET,
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  opacity: busy ? 0.6 : 1,
+                }}
+              >
+                {uiText(locale, 'pushBannerButton')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

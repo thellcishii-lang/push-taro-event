@@ -295,6 +295,54 @@ export const UI_TEXT = {
     zh: '（已删除的优惠券）',
     ko: '(삭제된 쿠폰)',
   },
+  visitorPageLabel: {
+    ja: '来場者ページ',
+    en: 'Visitor page',
+    zh: '访客页面',
+    ko: '방문객 페이지',
+  },
+  claimedBadge: {
+    ja: '取得済み・利用可',
+    en: 'Claimed · Available',
+    zh: '已领取・可使用',
+    ko: '취득 완료・사용 가능',
+  },
+  validUntil: {
+    ja: '有効期限: {date}まで',
+    en: 'Valid until {date}',
+    zh: '有效期至 {date}',
+    ko: '유효기간: {date}까지',
+  },
+  daysLeft: {
+    ja: '有効期限まで: 残り{days}日',
+    en: '{days} days left until expiry',
+    zh: '距有效期还有 {days} 天',
+    ko: '유효기간까지 {days}일 남음',
+  },
+  catalogSummary: {
+    ja: '全{companies}社 {count}件のクーポン',
+    en: '{count} coupons from {companies} exhibitors',
+    zh: '共 {companies} 家参展商 {count} 张优惠券',
+    ko: '전 {companies}개사 쿠폰 {count}장',
+  },
+  pushBannerTitle: {
+    ja: 'プッシュ通知をONにする',
+    en: 'Turn on push notifications',
+    zh: '开启推送通知',
+    ko: '푸시 알림 켜기',
+  },
+  pushBannerBody: {
+    ja: '最新情報・お得なクーポンをお届けします',
+    en: 'Get the latest news and special coupons',
+    zh: '为您推送最新消息和优惠券',
+    ko: '최신 소식과 알찬 쿠폰을 보내드립니다',
+  },
+  pushBannerButton: {
+    ja: '今すぐ有効化',
+    en: 'Enable now',
+    zh: '立即开启',
+    ko: '지금 활성화',
+  },
 } as const satisfies Record<string, Record<Locale, string>>;
 
 export type UiTextKey = keyof typeof UI_TEXT;
