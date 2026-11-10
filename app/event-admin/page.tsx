@@ -12,6 +12,9 @@
 // （判定は GET /api/organizers/me、変更系API側にも同じゲートがある）。
 // 画面の固定文は4言語辞書（lib/ui-text.ts）。主催者の表示言語は
 // この端末に保存される個人の選択（components/AdminLocale.tsx）。
+// 見た目は承認済みモック準拠（ブランドバー＋白カード＋バイオレット）。
+// フィードバック文は、それを起こした操作のすぐ近くに出す
+// （読込エラーは一覧の上、保存結果はフォーム内）。
 import { useCallback, useEffect, useState } from 'react';
 import {
   User,
@@ -24,6 +27,15 @@ import { auth } from '@/lib/firebase-client';
 import PasswordInput from '@/components/PasswordInput';
 import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
 import { CapWarningBanner } from '@/components/CapWarningBanner';
+import {
+  ADMIN_CARD_BORDER,
+  ADMIN_CARD_SHADOW,
+  ADMIN_PAGE_BG,
+  AdminBrandBar,
+  adminErrorTextStyle,
+  adminFeedbackStyle,
+  adminPageTitleStyle,
+} from '@/components/AdminBrand';
 import {
   EventConfig,
   EventResetMode,
@@ -73,14 +85,13 @@ function toForm(event: EventConfig): EventForm {
 }
 
 const VIOLET = '#6D28D9';
-const VIOLET_BRIGHT = '#7C3AED';
 
 const containerStyle: React.CSSProperties = {
-  padding: '20px 16px 40px',
+  padding: '20px 16px 48px',
   maxWidth: 880,
   margin: '0 auto',
   fontFamily: 'sans-serif',
-  backgroundColor: '#f8fafc',
+  backgroundColor: ADMIN_PAGE_BG,
   minHeight: '100vh',
   boxSizing: 'border-box',
   color: '#0f172a',
@@ -88,31 +99,18 @@ const containerStyle: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   backgroundColor: '#ffffff',
-  border: '1px solid #e2e8f0',
-  borderRadius: 12,
-  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
-};
-
-const headerStyle: React.CSSProperties = {
-  background: `linear-gradient(135deg, ${VIOLET_BRIGHT}, ${VIOLET})`,
-  borderRadius: 16,
-  padding: '16px 20px',
-  color: '#ffffff',
-  boxShadow: '0 4px 14px rgba(109, 40, 217, 0.35)',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: 12,
+  border: `1px solid ${ADMIN_CARD_BORDER}`,
+  borderRadius: 18,
+  boxShadow: ADMIN_CARD_SHADOW,
 };
 
 const inputStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
-  padding: '10px 12px',
+  padding: '11px 12px',
   marginTop: 6,
-  border: '1px solid #cbd5e1',
-  borderRadius: 10,
+  border: '1px solid #D9D4EC',
+  borderRadius: 12,
   fontSize: 14,
   backgroundColor: '#ffffff',
   boxSizing: 'border-box',
@@ -126,37 +124,58 @@ const labelStyle: React.CSSProperties = {
 };
 
 const primaryButtonStyle: React.CSSProperties = {
-  padding: '10px 20px',
+  padding: '12px 22px',
   fontWeight: 700,
-  fontSize: 14,
+  fontSize: 15,
   backgroundColor: VIOLET,
   color: '#ffffff',
   border: 'none',
-  borderRadius: 10,
+  borderRadius: 12,
   cursor: 'pointer',
+  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
 };
 
 const logoutButtonStyle: React.CSSProperties = {
   padding: '7px 14px',
-  fontSize: 14,
-  fontWeight: 600,
-  borderRadius: 999,
-  border: '1px solid rgba(255, 255, 255, 0.5)',
-  backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  color: '#ffffff',
-  cursor: 'pointer',
-};
-
-const quickLinkStyle: React.CSSProperties = {
-  display: 'inline-block',
-  padding: '6px 12px',
   fontSize: 13,
   fontWeight: 600,
   borderRadius: 999,
-  border: '1px solid #ddd6fe',
+  border: '1px solid #E3DEF2',
   backgroundColor: '#ffffff',
-  color: VIOLET,
+  color: '#3F3D56',
+  cursor: 'pointer',
+};
+
+const userEmailStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#64748b',
+};
+
+const cardActionBaseStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '9px 16px',
+  fontSize: 13,
+  fontWeight: 700,
+  borderRadius: 12,
   textDecoration: 'none',
+  whiteSpace: 'nowrap',
+};
+
+const cardActionSolidStyle: React.CSSProperties = {
+  ...cardActionBaseStyle,
+  backgroundColor: VIOLET,
+  color: '#ffffff',
+  boxShadow: '0 3px 10px rgba(109, 40, 217, 0.25)',
+};
+
+const cardActionOutlineStyle: React.CSSProperties = {
+  ...cardActionBaseStyle,
+  backgroundColor: '#ffffff',
+  border: '1.5px solid #C4B5FD',
+  color: VIOLET,
 };
 
 const noticeStyle: React.CSSProperties = {
@@ -168,18 +187,33 @@ const noticeStyle: React.CSSProperties = {
   fontSize: 13,
 };
 
-function statusBadgeStyle(status: EventConfig['status']): React.CSSProperties {
-  const base: React.CSSProperties = {
-    display: 'inline-block',
-    padding: '2px 10px',
-    fontSize: 12,
-    fontWeight: 700,
-    borderRadius: 999,
-    whiteSpace: 'nowrap',
-  };
-  if (status === 'live') return { ...base, backgroundColor: '#dcfce7', color: '#15803d' };
-  if (status === 'ended') return { ...base, backgroundColor: '#e2e8f0', color: '#475569' };
-  return { ...base, backgroundColor: '#fef3c7', color: '#b45309' };
+function statusBadgeColors(status: EventConfig['status']): {
+  bg: string;
+  color: string;
+  dot: string;
+} {
+  if (status === 'live') return { bg: '#D9F5E3', color: '#15803d', dot: '#22C55E' };
+  if (status === 'ended') return { bg: '#E8EAF1', color: '#5B6472', dot: '#94A3B8' };
+  return { bg: '#ECECF1', color: '#55565F', dot: '#9CA3AF' };
+}
+
+function PlaneIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4z" />
+    </svg>
+  );
 }
 
 export default function EventAdminPage() {
@@ -192,6 +226,7 @@ export default function EventAdminPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<EventForm>(emptyForm);
   const [message, setMessage] = useState('');
+  const [loadMessage, setLoadMessage] = useState('');
   const [busy, setBusy] = useState(false);
   // 初回パスワード変更ゲートの状態（unknown の間は管理画面を出さない）。
   const [passwordGate, setPasswordGate] = useState<'unknown' | 'required' | 'clear'>('unknown');
@@ -232,8 +267,9 @@ export default function EventAdminPage() {
     try {
       const data = await callApi('/api/events');
       setEvents(data.events ?? []);
+      setLoadMessage('');
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : adminText(locale, 'loadFailed'));
+      setLoadMessage(e instanceof Error ? e.message : adminText(locale, 'loadFailed'));
     }
   }, [user, callApi, locale]);
 
@@ -353,11 +389,9 @@ export default function EventAdminPage() {
   if (!user) {
     return (
       <main style={{ ...containerStyle, maxWidth: 480 }}>
-        <header style={headerStyle}>
-          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{adminText(locale, 'adminLoginTitle')}</h1>
-          <AdminLanguageSelect locale={locale} onChange={setLocale} />
-        </header>
-        <section style={{ ...cardStyle, padding: 20, marginTop: 16 }}>
+        <AdminBrandBar right={<AdminLanguageSelect locale={locale} onChange={setLocale} />} />
+        <section style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 16px' }}>{adminText(locale, 'adminLoginTitle')}</h1>
           <label style={labelStyle}>
             {adminText(locale, 'emailLabel')}
             <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -382,16 +416,18 @@ export default function EventAdminPage() {
   if (passwordGate === 'required') {
     return (
       <main style={{ ...containerStyle, maxWidth: 480 }}>
-        <header style={headerStyle}>
-          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{adminText(locale, 'adminTitle')}</h1>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <AdminLanguageSelect locale={locale} onChange={setLocale} />
-            <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
-              {adminText(locale, 'logoutButton')}
-            </button>
-          </div>
-        </header>
-        <section style={{ ...cardStyle, padding: 20, marginTop: 16 }}>
+        <AdminBrandBar
+          right={
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={userEmailStyle}>{user.email}</span>
+              <AdminLanguageSelect locale={locale} onChange={setLocale} />
+              <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
+                {adminText(locale, 'logoutButton')}
+              </button>
+            </div>
+          }
+        />
+        <section style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
           <h2 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 8px' }}>
             {adminText(locale, 'passwordChangeTitle')}
           </h2>
@@ -427,99 +463,43 @@ export default function EventAdminPage() {
 
   return (
     <main style={containerStyle}>
-      <header style={headerStyle}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{adminText(locale, 'adminTitle')}</h1>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <AdminLanguageSelect locale={locale} onChange={setLocale} />
-          <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
-            {adminText(locale, 'logoutButton')}
-          </button>
-        </div>
-      </header>
+      <AdminBrandBar
+        right={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={userEmailStyle}>{user.email}</span>
+            <AdminLanguageSelect locale={locale} onChange={setLocale} />
+            <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
+              {adminText(locale, 'logoutButton')}
+            </button>
+          </div>
+        }
+      />
+      <h1 style={adminPageTitleStyle}>{adminText(locale, 'adminTitle')}</h1>
 
       <CapWarningBanner locale={locale} />
 
-      <section style={{ marginTop: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{adminText(locale, 'eventsListTitle')}</h2>
-        <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-          {adminText(locale, 'concurrentCapNote', {
-            cap: String(MAX_CONCURRENT_EVENTS),
-            active: String(activeCount),
-          })}
-        </p>
-        {events.length === 0 && <p style={{ fontSize: 13, color: '#64748b' }}>{adminText(locale, 'noEvents')}</p>}
-        <ul
+      <section style={{ marginTop: 22 }}>
+        <div
           style={{
-            listStyle: 'none',
-            padding: 0,
-            margin: '12px 0 0',
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
             gap: 12,
+            flexWrap: 'wrap',
           }}
         >
-          {events.map((event) => (
-            <li
-              key={event.id}
-              style={{
-                ...cardStyle,
-                padding: 16,
-                ...(event.id === selectedId
-                  ? { border: '2px solid #6D28D9' }
-                  : null),
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <button
-                  onClick={() => {
-                    setSelectedId(event.id);
-                    setForm(toForm(event));
-                    setMessage('');
-                  }}
-                  style={{
-                    fontWeight: 700,
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: 16,
-                    color: '#0f172a',
-                    padding: 0,
-                    textAlign: 'left',
-                  }}
-                >
-                  {event.name}
-                </button>
-                <span style={statusBadgeStyle(event.status)}>{statusText(event.status)}</span>
-              </div>
-              <div style={{ fontSize: 13, color: '#475569', marginTop: 6 }}>
-                {adminText(locale, 'eventMeta', {
-                  start: event.startDate,
-                  end: event.endDate,
-                  status: statusText(event.status),
-                  mode: adminText(
-                    locale,
-                    event.resetMode === 'full-daily' ? 'resetModeFullShort' : 'resetModeKeepShort',
-                  ),
-                  time: event.resetTime,
-                })}
-              </div>
-              <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <a href={`/event-admin/${event.id}/push`} style={quickLinkStyle}>
-                  {adminText(locale, 'navPush')} →
-                </a>
-                <a href={`/event-admin/${event.id}/schedule`} style={quickLinkStyle}>
-                  {adminText(locale, 'navSchedule')} →
-                </a>
-                <a href={`/event-admin/${event.id}/coupons`} style={quickLinkStyle}>
-                  {adminText(locale, 'navCoupons')} →
-                </a>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <div style={{ marginTop: 14 }}>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{adminText(locale, 'eventsListTitle')}</h2>
+            <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
+              ⓘ{' '}
+              {adminText(locale, 'concurrentCapNote', {
+                cap: String(MAX_CONCURRENT_EVENTS),
+                active: String(activeCount),
+              })}
+            </p>
+          </div>
           {capReached ? (
-            <p style={noticeStyle}>
+            <p style={{ ...noticeStyle, margin: 0 }}>
               {adminText(locale, 'concurrentCapReached', { cap: String(MAX_CONCURRENT_EVENTS) })}
             </p>
           ) : (
@@ -535,10 +515,126 @@ export default function EventAdminPage() {
             </button>
           )}
         </div>
+        {loadMessage && <p style={adminErrorTextStyle}>{loadMessage}</p>}
+        {events.length === 0 && <p style={{ fontSize: 13, color: '#64748b' }}>{adminText(locale, 'noEvents')}</p>}
+        <ul
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: '14px 0 0',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: '22px 14px',
+          }}
+        >
+          {events.map((event) => {
+            const badge = statusBadgeColors(event.status);
+            return (
+              <li
+                key={event.id}
+                style={{
+                  ...cardStyle,
+                  position: 'relative',
+                  padding: '22px 20px 18px',
+                  ...(event.id === selectedId
+                    ? { border: '2px solid #6D28D9' }
+                    : null),
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: -11,
+                    right: 16,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 12px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    borderRadius: 999,
+                    backgroundColor: badge.bg,
+                    color: badge.color,
+                    boxShadow: '0 1px 4px rgba(15, 23, 42, 0.12)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      backgroundColor: badge.dot,
+                    }}
+                  />
+                  {statusText(event.status)}
+                </span>
+                <button
+                  onClick={() => {
+                    setSelectedId(event.id);
+                    setForm(toForm(event));
+                    setMessage('');
+                  }}
+                  style={{
+                    fontWeight: 800,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 19,
+                    color: '#0f172a',
+                    padding: 0,
+                    textAlign: 'left',
+                    letterSpacing: -0.3,
+                  }}
+                >
+                  {event.name}
+                </button>
+                <div
+                  style={{
+                    border: '1px solid #E7E3F4',
+                    borderRadius: 12,
+                    padding: '12px 14px',
+                    marginTop: 12,
+                  }}
+                >
+                  <div style={{ fontSize: 13, color: '#475569', lineHeight: 1.6 }}>
+                    {adminText(locale, 'eventMeta', {
+                      start: event.startDate,
+                      end: event.endDate,
+                      status: statusText(event.status),
+                      mode: adminText(
+                        locale,
+                        event.resetMode === 'full-daily' ? 'resetModeFullShort' : 'resetModeKeepShort',
+                      ),
+                      time: event.resetTime,
+                    })}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#475569', marginTop: 6 }}>
+                    <span style={{ fontWeight: 600 }}>{adminText(locale, 'subscriberCapLabel')}</span>{' '}
+                    {Number(event.subscriberCap).toLocaleString('ja-JP')}
+                    {adminText(locale, 'peopleSuffix')}
+                  </div>
+                </div>
+                <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <a href={`/event-admin/${event.id}/push`} style={cardActionSolidStyle}>
+                    <PlaneIcon />
+                    {adminText(locale, 'navPush')}
+                  </a>
+                  <a href={`/event-admin/${event.id}/schedule`} style={cardActionOutlineStyle}>
+                    {adminText(locale, 'navSchedule')}
+                  </a>
+                  <a href={`/event-admin/${event.id}/coupons`} style={cardActionOutlineStyle}>
+                    {adminText(locale, 'navCoupons')}
+                  </a>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
-      <section style={{ ...cardStyle, marginTop: 24, padding: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 14px' }}>
+      <section style={{ ...cardStyle, marginTop: 28, padding: 24 }}>
+        <h2 style={{ fontSize: 17, fontWeight: 800, margin: '0 0 14px' }}>
           {selected
             ? adminText(locale, 'editEventTitle', { name: selected.name })
             : adminText(locale, 'newEventTitle')}
@@ -560,7 +656,7 @@ export default function EventAdminPage() {
           {adminText(locale, 'endDateLabel')}
           <input style={inputStyle} type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
         </label>
-        <fieldset style={{ border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 14px', margin: '0 0 12px', backgroundColor: '#f8fafc' }}>
+        <fieldset style={{ border: '1px solid #E7E3F4', borderRadius: 12, padding: '12px 14px', margin: '0 0 12px', backgroundColor: '#F7F5FD' }}>
           <legend style={{ fontSize: 13, fontWeight: 600 }}>{adminText(locale, 'resetModeLegend')}</legend>
           <label style={{ display: 'block', fontSize: 14, marginBottom: 6 }}>
             <input
@@ -638,7 +734,7 @@ export default function EventAdminPage() {
         >
           {selected ? adminText(locale, 'saveButton') : adminText(locale, 'createButton')}
         </button>
-        {message && <p style={{ marginTop: 12, fontSize: 14 }}>{message}</p>}
+        {message && <p style={adminFeedbackStyle}>{message}</p>}
       </section>
     </main>
   );

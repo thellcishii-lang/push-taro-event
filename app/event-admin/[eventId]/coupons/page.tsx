@@ -5,6 +5,9 @@
 // 出店者（会社）の登録と、クーポンの登録・一覧を行う。クーポンはイベント全体で上限あり。
 // 案内PDFの管理もこの画面で行う。
 // 画面の固定文は4言語辞書（lib/ui-text.ts の ADMIN_TEXT）。
+// 見た目は承認済みモック準拠（ブランドバー＋白カード＋バイオレット）。
+// フィードバック文は、出店者／クーポン／PDFそれぞれのフォームの直下に出す
+// （以前は画面最下部にしか出ず、実利用で「何も起きない」ように見えた）。
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -15,6 +18,15 @@ import {
 } from 'firebase/auth';
 import { auth, storage } from '@/lib/firebase-client';
 import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
+import {
+  ADMIN_CARD_BORDER,
+  ADMIN_CARD_SHADOW,
+  ADMIN_PAGE_BG,
+  AdminBrandBar,
+  adminErrorTextStyle,
+  adminFeedbackStyle,
+  adminPageTitleStyle,
+} from '@/components/AdminBrand';
 import { adminText, uiText } from '@/lib/ui-text';
 import { AdminNav } from '../AdminNav';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
@@ -43,7 +55,6 @@ interface InfoPdf {
 }
 
 const VIOLET = '#6D28D9';
-const VIOLET_BRIGHT = '#7C3AED';
 
 /** クーポンオプションで増やせるイベント単位の上限（LP 記載）。 */
 const COUPON_OPTION_MAX_CAP = 500;
@@ -51,11 +62,11 @@ const COUPON_OPTION_MAX_CAP = 500;
 const HONKE_COUPON_OPTION_URL = 'https://push-taro.com/event-option';
 
 const containerStyle: React.CSSProperties = {
-  padding: '20px 16px 40px',
+  padding: '20px 16px 48px',
   maxWidth: 880,
   margin: '0 auto',
   fontFamily: 'sans-serif',
-  backgroundColor: '#f8fafc',
+  backgroundColor: ADMIN_PAGE_BG,
   minHeight: '100vh',
   boxSizing: 'border-box',
   color: '#0f172a',
@@ -63,31 +74,18 @@ const containerStyle: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   backgroundColor: '#ffffff',
-  border: '1px solid #e2e8f0',
-  borderRadius: 12,
-  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
-};
-
-const headerStyle: React.CSSProperties = {
-  background: `linear-gradient(135deg, ${VIOLET_BRIGHT}, ${VIOLET})`,
-  borderRadius: 16,
-  padding: '16px 20px',
-  color: '#ffffff',
-  boxShadow: '0 4px 14px rgba(109, 40, 217, 0.35)',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: 12,
+  border: `1px solid ${ADMIN_CARD_BORDER}`,
+  borderRadius: 18,
+  boxShadow: ADMIN_CARD_SHADOW,
 };
 
 const inputStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
-  padding: '10px 12px',
+  padding: '11px 12px',
   marginTop: 6,
-  border: '1px solid #cbd5e1',
-  borderRadius: 10,
+  border: '1px solid #D9D4EC',
+  borderRadius: 12,
   fontSize: 14,
   backgroundColor: '#ffffff',
   boxSizing: 'border-box',
@@ -101,49 +99,62 @@ const labelStyle: React.CSSProperties = {
 };
 
 const primaryButtonStyle: React.CSSProperties = {
-  padding: '10px 20px',
+  padding: '12px 22px',
   fontWeight: 700,
-  fontSize: 14,
+  fontSize: 15,
   backgroundColor: VIOLET,
   color: '#ffffff',
   border: 'none',
-  borderRadius: 10,
+  borderRadius: 12,
   cursor: 'pointer',
+  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
 };
 
 const logoutButtonStyle: React.CSSProperties = {
   padding: '7px 14px',
-  fontSize: 14,
-  fontWeight: 600,
-  borderRadius: 999,
-  border: '1px solid rgba(255, 255, 255, 0.5)',
-  backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  color: '#ffffff',
-  cursor: 'pointer',
-};
-
-const dangerButtonStyle: React.CSSProperties = {
-  padding: '6px 14px',
   fontSize: 13,
   fontWeight: 600,
   borderRadius: 999,
+  border: '1px solid #E3DEF2',
+  backgroundColor: '#ffffff',
+  color: '#3F3D56',
+  cursor: 'pointer',
+};
+
+const userEmailStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#64748b',
+};
+
+const dangerButtonStyle: React.CSSProperties = {
+  padding: '7px 16px',
+  fontSize: 13,
+  fontWeight: 600,
+  borderRadius: 12,
   border: '1px solid #fca5a5',
   backgroundColor: '#ffffff',
   color: '#b91c1c',
   cursor: 'pointer',
 };
 
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 800,
+  margin: 0,
+};
+
 function linkBadgeStyle(linked: boolean): React.CSSProperties {
   return {
     display: 'inline-block',
-    padding: '2px 10px',
+    padding: '3px 12px',
     fontSize: 12,
     fontWeight: 700,
     borderRadius: 999,
     whiteSpace: 'nowrap',
     ...(linked
-      ? { backgroundColor: '#dcfce7', color: '#15803d' }
-      : { backgroundColor: '#e2e8f0', color: '#475569' }),
+      ? { backgroundColor: '#D9F5E3', color: '#15803d' }
+      : { backgroundColor: '#E8EAF1', color: '#5B6472' }),
   };
 }
 
@@ -170,6 +181,10 @@ export default function EventCouponAdminPage() {
     keywords: '',
   });
   const [message, setMessage] = useState('');
+  const [loadMessage, setLoadMessage] = useState('');
+  const [exhibitorMessage, setExhibitorMessage] = useState('');
+  const [couponMessage, setCouponMessage] = useState('');
+  const [pdfMessage, setPdfMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -213,8 +228,9 @@ export default function EventCouponAdminPage() {
       setCoupons(cpData.coupons ?? []);
       setPdfs(pdfData.pdfs ?? []);
       if (typeof evData.event?.couponCap === 'number') setCouponCap(evData.event.couponCap);
+      setLoadMessage('');
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : adminText(locale, 'loadFailed'));
+      setLoadMessage(e instanceof Error ? e.message : adminText(locale, 'loadFailed'));
     }
   }, [user, eventId, callApi, locale]);
 
@@ -236,7 +252,7 @@ export default function EventCouponAdminPage() {
 
   const handleAddExhibitor = async () => {
     setBusy(true);
-    setMessage('');
+    setExhibitorMessage('');
     try {
       const result = await callApi(`/api/events/${eventId}/exhibitors`, {
         method: 'POST',
@@ -244,12 +260,12 @@ export default function EventCouponAdminPage() {
       });
       setExhibitorName('');
       setExhibitorEmail('');
-      setMessage(
+      setExhibitorMessage(
         adminText(locale, result?.accountCreated ? 'exhibitorAddedInvited' : 'exhibitorAdded'),
       );
       await loadAll();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : adminText(locale, 'exhibitorAddFailed'));
+      setExhibitorMessage(e instanceof Error ? e.message : adminText(locale, 'exhibitorAddFailed'));
     } finally {
       setBusy(false);
     }
@@ -257,7 +273,7 @@ export default function EventCouponAdminPage() {
 
   const handleAddCoupon = async () => {
     setBusy(true);
-    setMessage('');
+    setCouponMessage('');
     try {
       await callApi(`/api/events/${eventId}/coupons`, {
         method: 'POST',
@@ -272,10 +288,10 @@ export default function EventCouponAdminPage() {
         }),
       });
       setCouponForm({ ...couponForm, title: '', description: '', keywords: '' });
-      setMessage(adminText(locale, 'couponAdded'));
+      setCouponMessage(adminText(locale, 'couponAdded'));
       await loadAll();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : adminText(locale, 'couponAddFailed'));
+      setCouponMessage(e instanceof Error ? e.message : adminText(locale, 'couponAddFailed'));
     } finally {
       setBusy(false);
     }
@@ -286,7 +302,7 @@ export default function EventCouponAdminPage() {
       const file = acceptedFiles[0];
       if (!file || !user) return;
       setPdfUploading(true);
-      setMessage('');
+      setPdfMessage('');
       try {
         const storagePath = `events/${eventId}/info-pdfs/${crypto.randomUUID()}.pdf`;
         const ref = storageRef(storage, storagePath);
@@ -301,10 +317,10 @@ export default function EventCouponAdminPage() {
           }),
         });
         setPdfTitle('');
-        setMessage(adminText(locale, 'pdfAdded'));
+        setPdfMessage(adminText(locale, 'pdfAdded'));
         await loadAll();
       } catch (e) {
-        setMessage(e instanceof Error ? e.message : adminText(locale, 'pdfAddFailed'));
+        setPdfMessage(e instanceof Error ? e.message : adminText(locale, 'pdfAddFailed'));
       } finally {
         setPdfUploading(false);
       }
@@ -322,13 +338,13 @@ export default function EventCouponAdminPage() {
   const handleDeletePdf = async (pdfId: string) => {
     if (!window.confirm(adminText(locale, 'confirmDeletePdf'))) return;
     setBusy(true);
-    setMessage('');
+    setPdfMessage('');
     try {
       await callApi(`/api/events/${eventId}/info-pdfs/${pdfId}`, { method: 'DELETE' });
-      setMessage(adminText(locale, 'pdfDeleted'));
+      setPdfMessage(adminText(locale, 'pdfDeleted'));
       await loadAll();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : adminText(locale, 'pdfDeleteFailed'));
+      setPdfMessage(e instanceof Error ? e.message : adminText(locale, 'pdfDeleteFailed'));
     } finally {
       setBusy(false);
     }
@@ -339,11 +355,9 @@ export default function EventCouponAdminPage() {
   if (!user) {
     return (
       <main style={{ ...containerStyle, maxWidth: 480 }}>
-        <header style={headerStyle}>
-          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{adminText(locale, 'adminLoginTitle')}</h1>
-          <AdminLanguageSelect locale={locale} onChange={setLocale} />
-        </header>
-        <section style={{ ...cardStyle, padding: 20, marginTop: 16 }}>
+        <AdminBrandBar right={<AdminLanguageSelect locale={locale} onChange={setLocale} />} />
+        <section style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 16px' }}>{adminText(locale, 'adminLoginTitle')}</h1>
           <label style={labelStyle}>
             {adminText(locale, 'emailLabel')}
             <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -363,23 +377,27 @@ export default function EventCouponAdminPage() {
 
   return (
     <main style={containerStyle}>
-      <header style={headerStyle}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{adminText(locale, 'couponsPageTitle')}</h1>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <AdminLanguageSelect locale={locale} onChange={setLocale} />
-          <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
-            {adminText(locale, 'logoutButton')}
-          </button>
-        </div>
-      </header>
+      <AdminBrandBar
+        right={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={userEmailStyle}>{user.email}</span>
+            <AdminLanguageSelect locale={locale} onChange={setLocale} />
+            <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
+              {adminText(locale, 'logoutButton')}
+            </button>
+          </div>
+        }
+      />
+      <h1 style={adminPageTitleStyle}>{adminText(locale, 'couponsPageTitle')}</h1>
       <AdminNav eventId={eventId} current="③" locale={locale} />
+      {loadMessage && <p style={adminErrorTextStyle}>{loadMessage}</p>}
 
-      <section style={{ marginTop: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
+      <section style={{ marginTop: 22 }}>
+        <h2 style={sectionTitleStyle}>
           {adminText(locale, 'exhibitorsTitle', { count: String(exhibitors.length) })}
         </h2>
         {exhibitors.length > 0 && (
-          <div style={{ ...cardStyle, padding: '4px 16px', marginTop: 10 }}>
+          <div style={{ ...cardStyle, padding: '4px 20px', marginTop: 12 }}>
             {exhibitors.map((exhibitor, i) => (
               <div
                 key={exhibitor.id}
@@ -389,8 +407,8 @@ export default function EventCouponAdminPage() {
                   alignItems: 'center',
                   gap: 8,
                   fontSize: 14,
-                  padding: '10px 0',
-                  borderBottom: i < exhibitors.length - 1 ? '1px solid #f1f5f9' : 'none',
+                  padding: '11px 0',
+                  borderBottom: i < exhibitors.length - 1 ? '1px solid #F0EDF8' : 'none',
                 }}
               >
                 <span style={{ fontWeight: 600 }}>{exhibitor.name}</span>
@@ -401,7 +419,7 @@ export default function EventCouponAdminPage() {
             ))}
           </div>
         )}
-        <div style={{ ...cardStyle, marginTop: 12, padding: 20 }}>
+        <div style={{ ...cardStyle, marginTop: 12, padding: 24 }}>
           <label style={labelStyle}>
             {adminText(locale, 'exhibitorNameLabel')}
             <input style={inputStyle} value={exhibitorName} onChange={(e) => setExhibitorName(e.target.value)} />
@@ -416,18 +434,27 @@ export default function EventCouponAdminPage() {
           <button onClick={handleAddExhibitor} disabled={busy || !exhibitorName.trim()} style={primaryButtonStyle}>
             {adminText(locale, 'addExhibitorButton')}
           </button>
+          {exhibitorMessage && <p style={adminFeedbackStyle}>{exhibitorMessage}</p>}
         </div>
       </section>
 
-      <section style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
+      <section style={{ marginTop: 30 }}>
+        <h2 style={sectionTitleStyle}>
           {adminText(locale, 'couponsCountTitle', { count: String(coupons.length), cap: String(couponCap) })}
         </h2>
-        <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+        <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
           {adminText(locale, 'capNote')}
         </p>
-        <div style={{ ...cardStyle, marginTop: 12, padding: 20 }}>
-          <div style={{ fontWeight: 800, fontSize: 14 }}>
+        <div
+          style={{
+            ...cardStyle,
+            marginTop: 12,
+            padding: 24,
+            backgroundColor: '#F5F3FF',
+            border: '1px solid #DDD6FE',
+          }}
+        >
+          <div style={{ fontWeight: 800, fontSize: 15, color: '#4C1D95' }}>
             {adminText(locale, 'couponOptionTitle')}
           </div>
           <p style={{ fontSize: 13, color: '#475569', marginTop: 6 }}>
@@ -446,7 +473,7 @@ export default function EventCouponAdminPage() {
                 ...primaryButtonStyle,
                 display: 'inline-block',
                 textDecoration: 'none',
-                marginTop: 8,
+                marginTop: 10,
               }}
             >
               {adminText(locale, 'couponOptionButton')}
@@ -454,19 +481,19 @@ export default function EventCouponAdminPage() {
           )}
         </div>
         {coupons.map((coupon) => (
-          <article key={coupon.id} style={{ ...cardStyle, padding: 16, marginTop: 10 }}>
+          <article key={coupon.id} style={{ ...cardStyle, padding: '18px 20px', marginTop: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{coupon.title}</div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{coupon.title}</div>
               {!coupon.active && (
                 <span
                   style={{
                     display: 'inline-block',
-                    padding: '2px 10px',
+                    padding: '3px 12px',
                     fontSize: 12,
                     fontWeight: 700,
                     borderRadius: 999,
-                    backgroundColor: '#e2e8f0',
-                    color: '#475569',
+                    backgroundColor: '#E8EAF1',
+                    color: '#5B6472',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -482,7 +509,7 @@ export default function EventCouponAdminPage() {
             {coupon.description && <p style={{ fontSize: 13, marginTop: 2 }}>{coupon.description}</p>}
           </article>
         ))}
-        <div style={{ ...cardStyle, marginTop: 12, padding: 20 }}>
+        <div style={{ ...cardStyle, marginTop: 12, padding: 24 }}>
           <label style={labelStyle}>
             {adminText(locale, 'exhibitorSelectLabel')}
             <select
@@ -517,20 +544,21 @@ export default function EventCouponAdminPage() {
           >
             {adminText(locale, 'addCouponButton')}
           </button>
+          {couponMessage && <p style={adminFeedbackStyle}>{couponMessage}</p>}
         </div>
       </section>
 
-      <section style={{ marginTop: 28 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>
+      <section style={{ marginTop: 30 }}>
+        <h2 style={sectionTitleStyle}>
           {adminText(locale, 'pdfsTitle', { count: String(pdfs.length) })}
         </h2>
-        <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+        <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
           {adminText(locale, 'pdfsNote')}
         </p>
         {pdfs.map((pdf) => (
           <div
             key={pdf.id}
-            style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', marginTop: 10 }}
+            style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', marginTop: 12 }}
           >
             <a href={pdf.url} target="_blank" rel="noreferrer" style={{ fontSize: 14, fontWeight: 600, color: VIOLET }}>
               {pdf.title}
@@ -540,7 +568,8 @@ export default function EventCouponAdminPage() {
             </button>
           </div>
         ))}
-        <div style={{ ...cardStyle, marginTop: 12, padding: 20 }}>
+        {pdfMessage && <p style={adminFeedbackStyle}>{pdfMessage}</p>}
+        <div style={{ ...cardStyle, marginTop: 12, padding: 24 }}>
           <label style={{ ...labelStyle, marginBottom: 0 }}>
             {adminText(locale, 'pdfTitleLabel')}
             <input style={inputStyle} value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder={adminText(locale, 'pdfTitlePlaceholder')} />
@@ -550,7 +579,7 @@ export default function EventCouponAdminPage() {
             style={{
               border: `2px dashed ${pdfDropzone.isDragActive ? '#6D28D9' : '#c4b5fd'}`,
               backgroundColor: pdfDropzone.isDragActive ? '#f5f3ff' : '#ffffff',
-              borderRadius: 12,
+              borderRadius: 16,
               padding: 24,
               marginTop: 12,
               textAlign: 'center',
@@ -569,8 +598,6 @@ export default function EventCouponAdminPage() {
           </div>
         </div>
       </section>
-
-      {message && <p style={{ marginTop: 14, fontSize: 14 }}>{message}</p>}
     </main>
   );
 }

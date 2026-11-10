@@ -5,6 +5,8 @@
 // 即時プッシュは campaigns API でその場で送信され、送信数（課金根拠）が履歴に残る。
 // 消込は主催者として全クーポン対象（出店者画面と違い自社制限なし）。
 // 画面の固定文は4言語辞書（lib/ui-text.ts の ADMIN_TEXT）。
+// 見た目は承認済みモック準拠（ブランドバー＋白カード＋バイオレット）。
+// フィードバック文は送信フォーム／消込フォーム／履歴それぞれの直下に出す。
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -15,6 +17,15 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase-client';
 import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
+import {
+  ADMIN_CARD_BORDER,
+  ADMIN_CARD_SHADOW,
+  ADMIN_PAGE_BG,
+  AdminBrandBar,
+  adminErrorTextStyle,
+  adminFeedbackStyle,
+  adminPageTitleStyle,
+} from '@/components/AdminBrand';
 import { adminText, uiText } from '@/lib/ui-text';
 import { AdminNav } from '../AdminNav';
 
@@ -30,14 +41,13 @@ interface Campaign {
 }
 
 const VIOLET = '#6D28D9';
-const VIOLET_BRIGHT = '#7C3AED';
 
 const containerStyle: React.CSSProperties = {
-  padding: '20px 16px 40px',
+  padding: '20px 16px 48px',
   maxWidth: 880,
   margin: '0 auto',
   fontFamily: 'sans-serif',
-  backgroundColor: '#f8fafc',
+  backgroundColor: ADMIN_PAGE_BG,
   minHeight: '100vh',
   boxSizing: 'border-box',
   color: '#0f172a',
@@ -45,31 +55,18 @@ const containerStyle: React.CSSProperties = {
 
 const cardStyle: React.CSSProperties = {
   backgroundColor: '#ffffff',
-  border: '1px solid #e2e8f0',
-  borderRadius: 12,
-  boxShadow: '0 1px 3px rgba(15, 23, 42, 0.08)',
-};
-
-const headerStyle: React.CSSProperties = {
-  background: `linear-gradient(135deg, ${VIOLET_BRIGHT}, ${VIOLET})`,
-  borderRadius: 16,
-  padding: '16px 20px',
-  color: '#ffffff',
-  boxShadow: '0 4px 14px rgba(109, 40, 217, 0.35)',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  flexWrap: 'wrap',
-  gap: 12,
+  border: `1px solid ${ADMIN_CARD_BORDER}`,
+  borderRadius: 18,
+  boxShadow: ADMIN_CARD_SHADOW,
 };
 
 const inputStyle: React.CSSProperties = {
   display: 'block',
   width: '100%',
-  padding: '10px 12px',
+  padding: '11px 12px',
   marginTop: 6,
-  border: '1px solid #cbd5e1',
-  borderRadius: 10,
+  border: '1px solid #D9D4EC',
+  borderRadius: 12,
   fontSize: 14,
   backgroundColor: '#ffffff',
   boxSizing: 'border-box',
@@ -83,39 +80,75 @@ const labelStyle: React.CSSProperties = {
 };
 
 const primaryButtonStyle: React.CSSProperties = {
-  padding: '10px 20px',
+  padding: '12px 22px',
   fontWeight: 700,
-  fontSize: 14,
+  fontSize: 15,
   backgroundColor: VIOLET,
   color: '#ffffff',
   border: 'none',
-  borderRadius: 10,
+  borderRadius: 12,
   cursor: 'pointer',
+  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
 };
 
 const logoutButtonStyle: React.CSSProperties = {
   padding: '7px 14px',
-  fontSize: 14,
+  fontSize: 13,
   fontWeight: 600,
   borderRadius: 999,
-  border: '1px solid rgba(255, 255, 255, 0.5)',
-  backgroundColor: 'rgba(255, 255, 255, 0.15)',
-  color: '#ffffff',
+  border: '1px solid #E3DEF2',
+  backgroundColor: '#ffffff',
+  color: '#3F3D56',
   cursor: 'pointer',
+};
+
+const userEmailStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#64748b',
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  fontSize: 17,
+  fontWeight: 800,
+  margin: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
 };
 
 function statusBadgeStyle(sent: boolean): React.CSSProperties {
   return {
     display: 'inline-block',
-    padding: '2px 10px',
+    padding: '3px 12px',
     fontSize: 12,
     fontWeight: 700,
     borderRadius: 999,
     whiteSpace: 'nowrap',
     ...(sent
-      ? { backgroundColor: '#dcfce7', color: '#15803d' }
+      ? { backgroundColor: '#D9F5E3', color: '#15803d' }
       : { backgroundColor: '#fee2e2', color: '#b91c1c' }),
   };
+}
+
+function PlaneIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={VIOLET}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      <path d="M22 2 11 13" />
+      <path d="M22 2 15 22l-4-9-9-4z" />
+    </svg>
+  );
 }
 
 export default function EventPushAdminPage() {
@@ -131,6 +164,9 @@ export default function EventPushAdminPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [claimCode, setClaimCode] = useState('');
   const [message, setMessage] = useState('');
+  const [pushMessage, setPushMessage] = useState('');
+  const [redeemMessage, setRedeemMessage] = useState('');
+  const [loadMessage, setLoadMessage] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -166,8 +202,9 @@ export default function EventPushAdminPage() {
     try {
       const data = await callApi(`/api/events/${eventId}/campaigns`);
       setCampaigns(data.campaigns ?? []);
+      setLoadMessage('');
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : adminText(locale, 'loadFailed'));
+      setLoadMessage(e instanceof Error ? e.message : adminText(locale, 'loadFailed'));
     }
   }, [user, eventId, callApi, locale]);
 
@@ -190,18 +227,18 @@ export default function EventPushAdminPage() {
   const handleSend = async () => {
     if (!window.confirm(adminText(locale, 'confirmSend'))) return;
     setBusy(true);
-    setMessage('');
+    setPushMessage('');
     try {
       const data = await callApi(`/api/events/${eventId}/campaigns`, {
         method: 'POST',
         body: JSON.stringify({ title, body }),
       });
-      setMessage(adminText(locale, 'sentMessage', { count: String(data.campaign?.sentCount ?? 0) }));
+      setPushMessage(adminText(locale, 'sentMessage', { count: String(data.campaign?.sentCount ?? 0) }));
       setTitle('');
       setBody('');
       await loadCampaigns();
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : adminText(locale, 'sendFailed'));
+      setPushMessage(e instanceof Error ? e.message : adminText(locale, 'sendFailed'));
     } finally {
       setBusy(false);
     }
@@ -209,16 +246,16 @@ export default function EventPushAdminPage() {
 
   const handleRedeem = async () => {
     setBusy(true);
-    setMessage('');
+    setRedeemMessage('');
     try {
       await callApi(`/api/events/${eventId}/redeem`, {
         method: 'POST',
         body: JSON.stringify({ claimId: claimCode.trim() }),
       });
-      setMessage(adminText(locale, 'redeemDoneMessage'));
+      setRedeemMessage(adminText(locale, 'redeemDoneMessage'));
       setClaimCode('');
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : adminText(locale, 'redeemFailedMessage'));
+      setRedeemMessage(e instanceof Error ? e.message : adminText(locale, 'redeemFailedMessage'));
     } finally {
       setBusy(false);
     }
@@ -229,11 +266,9 @@ export default function EventPushAdminPage() {
   if (!user) {
     return (
       <main style={{ ...containerStyle, maxWidth: 480 }}>
-        <header style={headerStyle}>
-          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{adminText(locale, 'adminLoginTitle')}</h1>
-          <AdminLanguageSelect locale={locale} onChange={setLocale} />
-        </header>
-        <section style={{ ...cardStyle, padding: 20, marginTop: 16 }}>
+        <AdminBrandBar right={<AdminLanguageSelect locale={locale} onChange={setLocale} />} />
+        <section style={{ ...cardStyle, padding: 24, marginTop: 16 }}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 16px' }}>{adminText(locale, 'adminLoginTitle')}</h1>
           <label style={labelStyle}>
             {adminText(locale, 'emailLabel')}
             <input style={inputStyle} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -255,19 +290,25 @@ export default function EventPushAdminPage() {
 
   return (
     <main style={containerStyle}>
-      <header style={headerStyle}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{adminText(locale, 'pushPageTitle')}</h1>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <AdminLanguageSelect locale={locale} onChange={setLocale} />
-          <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
-            {adminText(locale, 'logoutButton')}
-          </button>
-        </div>
-      </header>
+      <AdminBrandBar
+        right={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={userEmailStyle}>{user.email}</span>
+            <AdminLanguageSelect locale={locale} onChange={setLocale} />
+            <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
+              {adminText(locale, 'logoutButton')}
+            </button>
+          </div>
+        }
+      />
+      <h1 style={adminPageTitleStyle}>{adminText(locale, 'pushPageTitle')}</h1>
       <AdminNav eventId={eventId} current="①" locale={locale} />
 
-      <section style={{ ...cardStyle, marginTop: 20, padding: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 14px' }}>{adminText(locale, 'instantPushTitle')}</h2>
+      <section style={{ ...cardStyle, marginTop: 22, padding: 24 }}>
+        <h2 style={{ ...sectionTitleStyle, marginBottom: 14 }}>
+          <PlaneIcon />
+          {adminText(locale, 'instantPushTitle')}
+        </h2>
         <label style={labelStyle}>
           {adminText(locale, 'titleLabel')}
           <input style={inputStyle} value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -276,13 +317,18 @@ export default function EventPushAdminPage() {
           {adminText(locale, 'bodyLabel')}
           <textarea style={{ ...inputStyle, minHeight: 72 }} value={body} onChange={(e) => setBody(e.target.value)} />
         </label>
-        <button onClick={handleSend} disabled={busy || !title.trim() || !body.trim()} style={primaryButtonStyle}>
+        <button
+          onClick={handleSend}
+          disabled={busy || !title.trim() || !body.trim()}
+          style={{ ...primaryButtonStyle, width: '100%', padding: '14px 22px', fontSize: 16 }}
+        >
           {adminText(locale, 'sendNowButton')}
         </button>
+        {pushMessage && <p style={adminFeedbackStyle}>{pushMessage}</p>}
       </section>
 
-      <section style={{ ...cardStyle, marginTop: 16, padding: 20 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: '0 0 14px' }}>{adminText(locale, 'organizerRedeemTitle')}</h2>
+      <section style={{ ...cardStyle, marginTop: 16, padding: 24 }}>
+        <h2 style={{ ...sectionTitleStyle, marginBottom: 14 }}>{adminText(locale, 'organizerRedeemTitle')}</h2>
         <label style={labelStyle}>
           {adminText(locale, 'claimCodeLabel')}
           <input style={inputStyle} value={claimCode} onChange={(e) => setClaimCode(e.target.value)} placeholder={adminText(locale, 'claimCodePlaceholder')} />
@@ -290,34 +336,44 @@ export default function EventPushAdminPage() {
         <button onClick={handleRedeem} disabled={busy || !claimCode.trim()} style={primaryButtonStyle}>
           {adminText(locale, 'redeemButton')}
         </button>
+        {redeemMessage && <p style={adminFeedbackStyle}>{redeemMessage}</p>}
       </section>
 
-      {message && <p style={{ marginTop: 14, fontSize: 14 }}>{message}</p>}
-
-      <section style={{ marginTop: 24 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>{adminText(locale, 'historyTitle')}</h2>
+      <section style={{ marginTop: 26 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{adminText(locale, 'historyTitle')}</h2>
+        {loadMessage && <p style={adminErrorTextStyle}>{loadMessage}</p>}
         {sentCampaigns.length === 0 && (
           <p style={{ fontSize: 13, color: '#64748b' }}>{adminText(locale, 'noHistory')}</p>
         )}
-        {sentCampaigns.map((campaign) => (
-          <article key={campaign.id} style={{ ...cardStyle, padding: 16, marginTop: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{campaign.title}</div>
-              <span style={statusBadgeStyle(campaign.status === 'sent')}>
-                {adminText(locale, campaign.status === 'sent' ? 'badgeSent' : 'badgeFailed')}
-              </span>
-            </div>
-            <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
-              {campaign.status === 'sent'
-                ? adminText(locale, 'historySent', {
-                    sentAt: campaign.sentAt ?? '',
-                    count: String(campaign.sentCount ?? 0),
-                  })
-                : adminText(locale, 'historyFailed', { error: campaign.error ?? '' })}
-            </div>
-            <p style={{ fontSize: 13, marginTop: 2 }}>{campaign.body}</p>
-          </article>
-        ))}
+        {sentCampaigns.length > 0 && (
+          <div style={{ ...cardStyle, marginTop: 12, padding: '4px 20px' }}>
+            {sentCampaigns.map((campaign, i) => (
+              <article
+                key={campaign.id}
+                style={{
+                  padding: '14px 0',
+                  borderBottom: i < sentCampaigns.length - 1 ? '1px solid #F0EDF8' : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>{campaign.title}</div>
+                  <span style={statusBadgeStyle(campaign.status === 'sent')}>
+                    {adminText(locale, campaign.status === 'sent' ? 'badgeSent' : 'badgeFailed')}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
+                  {campaign.status === 'sent'
+                    ? adminText(locale, 'historySent', {
+                        sentAt: campaign.sentAt ?? '',
+                        count: String(campaign.sentCount ?? 0),
+                      })
+                    : adminText(locale, 'historyFailed', { error: campaign.error ?? '' })}
+                </div>
+                <p style={{ fontSize: 13, marginTop: 2 }}>{campaign.body}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );

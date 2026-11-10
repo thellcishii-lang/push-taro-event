@@ -33,20 +33,21 @@ function formatDate(value: string, locale: Locale): string {
 
 const bannerStyle: React.CSSProperties = {
   marginTop: 16,
-  padding: '14px 16px',
+  padding: '16px 18px',
   backgroundColor: '#fffbeb',
   border: '1px solid #f59e0b',
-  borderRadius: 12,
+  borderRadius: 16,
+  boxShadow: '0 2px 12px rgba(60, 30, 120, 0.07)',
   color: '#92400e',
 };
 
 const extendButtonStyle: React.CSSProperties = {
   display: 'inline-block',
   marginTop: 10,
-  padding: '8px 16px',
+  padding: '9px 18px',
   fontSize: 13,
   fontWeight: 700,
-  borderRadius: 999,
+  borderRadius: 12,
   backgroundColor: '#f59e0b',
   color: '#ffffff',
   textDecoration: 'none',
