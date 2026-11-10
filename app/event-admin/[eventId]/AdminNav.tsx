@@ -2,34 +2,82 @@
 
 // app/event-admin/[eventId]/AdminNav.tsx
 // 管理画面①②③とイベント設定の間の共通ナビ。
+// 承認済みモックに合わせ、白カードの中にアイコン付きメニューを縦に並べ、
+// 現在地はバイオレットの塗りつぶしで示す。
+import type { ReactNode } from 'react';
 import { adminText } from '@/lib/ui-text';
 import type { Locale } from '@/lib/i18n';
 import { CapWarningBanner } from '@/components/CapWarningBanner';
+import { ADMIN_CARD_BORDER, ADMIN_CARD_SHADOW, ADMIN_VIOLET } from '@/components/AdminBrand';
 
-const VIOLET = '#6D28D9';
+function NavIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      {children}
+    </svg>
+  );
+}
 
-const pillBaseStyle: React.CSSProperties = {
-  display: 'inline-block',
-  padding: '7px 14px',
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 999,
+const settingsIcon = (
+  <NavIcon>
+    <circle cx="12" cy="12" r="3.2" />
+    <path d="M12 4.6v2.6M12 16.8v2.6M4.6 12h2.6M16.8 12h2.6M6.8 6.8l1.8 1.8M15.4 15.4l1.8 1.8M17.2 6.8l-1.8 1.8M8.6 15.4l-1.8 1.8" />
+  </NavIcon>
+);
+
+const pushIcon = (
+  <NavIcon>
+    <path d="M22 2 11 13" />
+    <path d="M22 2 15 22l-4-9-9-4z" />
+  </NavIcon>
+);
+
+const scheduleIcon = (
+  <NavIcon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </NavIcon>
+);
+
+const couponsIcon = (
+  <NavIcon>
+    <path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6z" />
+    <path d="M13 5v2M13 11v2M13 17v2" />
+  </NavIcon>
+);
+
+const itemBaseStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 12,
+  padding: '12px 14px',
+  fontSize: 15,
+  fontWeight: 700,
+  borderRadius: 12,
   textDecoration: 'none',
-  whiteSpace: 'nowrap',
 };
 
-const pillLinkStyle: React.CSSProperties = {
-  ...pillBaseStyle,
-  backgroundColor: '#ffffff',
-  border: '1px solid #ddd6fe',
-  color: VIOLET,
+const itemLinkStyle: React.CSSProperties = {
+  ...itemBaseStyle,
+  color: '#26233B',
 };
 
-const pillCurrentStyle: React.CSSProperties = {
-  ...pillBaseStyle,
-  backgroundColor: VIOLET,
-  border: '1px solid #6D28D9',
+const itemCurrentStyle: React.CSSProperties = {
+  ...itemBaseStyle,
+  backgroundColor: ADMIN_VIOLET,
   color: '#ffffff',
+  boxShadow: '0 4px 12px rgba(109, 40, 217, 0.30)',
 };
 
 export function AdminNav({
@@ -42,21 +90,35 @@ export function AdminNav({
   locale: Locale;
 }) {
   const items = [
-    { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush') },
-    { key: '②', href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule') },
-    { key: '③', href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons') },
-    { key: '設定', href: '/event-admin', label: adminText(locale, 'navSettings') },
+    { key: '設定', href: '/event-admin', label: adminText(locale, 'navSettings'), icon: settingsIcon },
+    { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush'), icon: pushIcon },
+    { key: '②', href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule'), icon: scheduleIcon },
+    { key: '③', href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons'), icon: couponsIcon },
   ];
   return (
     <>
-      <nav style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+      <nav
+        style={{
+          marginTop: 18,
+          backgroundColor: '#ffffff',
+          border: `1px solid ${ADMIN_CARD_BORDER}`,
+          borderRadius: 18,
+          boxShadow: ADMIN_CARD_SHADOW,
+          padding: 10,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+        }}
+      >
         {items.map((item) =>
           item.key === current ? (
-            <span key={item.href} style={pillCurrentStyle} aria-current="page">
+            <span key={item.href} style={itemCurrentStyle} aria-current="page">
+              <span style={{ display: 'flex', color: '#ffffff' }}>{item.icon}</span>
               {item.label}
             </span>
           ) : (
-            <a key={item.href} href={item.href} style={pillLinkStyle}>
+            <a key={item.href} href={item.href} style={itemLinkStyle}>
+              <span style={{ display: 'flex', color: ADMIN_VIOLET }}>{item.icon}</span>
               {item.label}
             </a>
           ),
