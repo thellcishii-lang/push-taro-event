@@ -42,7 +42,8 @@ import { useDropzone } from 'react-dropzone';
 interface Exhibitor {
   id: string;
   name: string;
-  authUid: string | null;
+  email: string | null;
+  hasAccessCode: boolean;
 }
 
 interface Coupon {
@@ -260,13 +261,11 @@ export default function EventCouponAdminPage() {
     try {
       const result = await callApi(`/api/events/${eventId}/exhibitors`, {
         method: 'POST',
-        body: JSON.stringify({ name: exhibitorName, authEmail: exhibitorEmail || undefined }),
+        body: JSON.stringify({ name: exhibitorName, email: exhibitorEmail }),
       });
       setExhibitorName('');
       setExhibitorEmail('');
-      setExhibitorMessage(
-        adminText(locale, result?.accountCreated ? 'exhibitorAddedInvited' : 'exhibitorAdded'),
-      );
+      setExhibitorMessage(adminText(locale, 'exhibitorAdded'));
       await loadAll();
       const newId = typeof result?.exhibitor?.id === 'string' ? result.exhibitor.id : null;
       if (newId) setHighlight({ kind: 'exhibitor', id: newId });
@@ -275,6 +274,38 @@ export default function EventCouponAdminPage() {
     } finally {
       setBusy(false);
       setPendingForm(null);
+    }
+  };
+
+  // パスワード再発行。再発行すると旧パスワードは即失効し、新パスワードが
+  // 登録メールへ送られる。メール未登録の旧出店者は、その場でメールを
+  // 入力してもらってから発行する（移行手段）。
+  const [reissuingId, setReissuingId] = useState<string | null>(null);
+  const handleReissueExhibitor = async (exhibitor: Exhibitor) => {
+    if (!window.confirm(adminText(locale, 'exhibitorReissueConfirm'))) return;
+    let email = exhibitor.email;
+    if (!email) {
+      const entered = window.prompt(adminText(locale, 'exhibitorEmailPrompt'));
+      if (!entered || !entered.trim()) return;
+      email = entered.trim();
+    }
+    setBusy(true);
+    setReissuingId(exhibitor.id);
+    setExhibitorMessage('');
+    try {
+      await callApi(`/api/events/${eventId}/exhibitors/${exhibitor.id}/password`, {
+        method: 'POST',
+        body: JSON.stringify(email !== exhibitor.email ? { email } : {}),
+      });
+      setExhibitorMessage(adminText(locale, 'exhibitorReissued'));
+      await loadAll();
+    } catch (e) {
+      setExhibitorMessage(
+        e instanceof Error ? e.message : adminText(locale, 'exhibitorReissueFailed'),
+      );
+    } finally {
+      setBusy(false);
+      setReissuingId(null);
     }
   };
 
@@ -430,9 +461,53 @@ export default function EventCouponAdminPage() {
                     : null),
                 }}
               >
-                <span style={{ fontWeight: 600 }}>{exhibitor.name}</span>
-                <span style={linkBadgeStyle(!!exhibitor.authUid)}>
-                  {exhibitor.authUid ? adminText(locale, 'loginLinked') : adminText(locale, 'loginNotLinked')}
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ fontWeight: 600, display: 'block' }}>{exhibitor.name}</span>
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 12,
+                      color: '#64748b',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {exhibitor.email ?? ''}
+                  </span>
+                </span>
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={linkBadgeStyle(exhibitor.hasAccessCode)}>
+                    {exhibitor.hasAccessCode
+                      ? adminText(locale, 'exhibitorHasPassword')
+                      : adminText(locale, 'exhibitorNoPassword')}
+                  </span>
+                  <button
+                    onClick={() => void handleReissueExhibitor(exhibitor)}
+                    disabled={busy}
+                    style={{
+                      padding: '5px 12px',
+                      fontSize: 12.5,
+                      fontWeight: 600,
+                      borderRadius: 999,
+                      border: '1px solid #D9D4EC',
+                      backgroundColor: '#ffffff',
+                      color: VIOLET,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      opacity: busy ? 0.6 : 1,
+                    }}
+                  >
+                    {reissuingId === exhibitor.id && <ButtonSpinner />}
+                    {adminText(locale, 'exhibitorReissueButton')}
+                  </button>
                 </span>
               </div>
             ))}
@@ -450,7 +525,7 @@ export default function EventCouponAdminPage() {
           <p style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>
             {adminText(locale, 'exhibitorEmailNote')}
           </p>
-          <button onClick={handleAddExhibitor} disabled={busy || !exhibitorName.trim()} style={primaryButtonStyle}>
+          <button onClick={handleAddExhibitor} disabled={busy || !exhibitorName.trim() || !exhibitorEmail.trim()} style={primaryButtonStyle}>
             <span style={adminButtonContentStyle}>
               {pendingForm === 'exhibitor' && <ButtonSpinner />}
               {pendingForm === 'exhibitor'

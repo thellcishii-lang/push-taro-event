@@ -1,8 +1,10 @@
 // lib/event-coupon.ts
 // Push-taro EVENT のクーポン基盤（events/{eventId} 配下）。
 //
-// - exhibitors/{exhibitorId}: 出店者（会社）。authUid は出店者ログイン
-//   （メール+パスワードの Firebase Auth ユーザー）と会社を結びつける。
+// - exhibitors/{exhibitorId}: 出店者（会社）。ログインはイベント専用の
+//   アクセスコード方式（lib/exhibitor-access.ts）。ドキュメントにメール
+//   アドレスとコードのハッシュ（accessCode フィールド）を持ち、Firebase
+//   Auth のアカウントは作らない（Auth は主催者だけ）。
 // - coupons/{couponId}: クーポン。必ず所有する出店者（exhibitorId）を持ち、
 //   検索・一覧用に出店者名とキーワードを保持する。イベント全体で最大100件。
 // - claims/{memberId}_{couponId}: 来場者の取得記録（電話番号キー）。
@@ -28,9 +30,28 @@ export const EVENT_COUPONS_COLLECTION = 'coupons';
 export interface EventExhibitor {
   id: string;
   name: string;
-  authUid: string | null;
+  /** 消込ログイン用メールアドレス。旧ドキュメント（Auth 方式時代）は null */
+  email: string | null;
+  /** アクセスコード（画面表記「パスワード」）が発行済みかどうか。
+   * ハッシュ自体は API に出さない。 */
+  hasAccessCode: boolean;
   /** 表示言語（個人の選択）。未設定ならイベントのデフォルト言語 */
   lang: Locale;
+}
+
+function mapExhibitor(
+  id: string,
+  data: Record<string, unknown>,
+): EventExhibitor {
+  return {
+    id,
+    name: String(data.name ?? ''),
+    email:
+      typeof data.email === 'string' && data.email ? data.email : null,
+    hasAccessCode:
+      typeof data.accessCode === 'string' && data.accessCode.length > 0,
+    lang: normalizeLocale(data.lang),
+  };
 }
 
 export interface EventCoupon {
@@ -136,33 +157,30 @@ export async function updateExhibitorLanguage(
 
 export async function createExhibitor(
   eventId: string,
-  input: { name: string; authUid?: string | null; lang?: Locale },
+  input: { name: string; email?: string | null; lang?: Locale },
 ): Promise<EventExhibitor> {
   const name = input.name.trim();
   if (!name) throw new Error('出店者名が必要です');
   const event = await getEvent(eventId);
   const ref = exhibitorsRef(eventId).doc();
+  const email = input.email?.trim().toLowerCase() || null;
   const exhibitor: EventExhibitor = {
     id: ref.id,
     name,
-    authUid: input.authUid ?? null,
+    email,
+    hasAccessCode: false,
     lang: resolveLocale(input.lang, event?.defaultLocale),
   };
-  await ref.set({ ...exhibitor, createdAt: FieldValue.serverTimestamp() });
+  // hasAccessCode はドキュメントの accessCode フィールドから導く表示用の値で、
+  // 保存するのは実フィールド（email / lang）だけ。
+  const { hasAccessCode: _displayOnly, ...stored } = exhibitor;
+  await ref.set({ ...stored, createdAt: FieldValue.serverTimestamp() });
   return exhibitor;
 }
 
 export async function listExhibitors(eventId: string): Promise<EventExhibitor[]> {
   const snap = await exhibitorsRef(eventId).get();
-  return snap.docs.map((doc) => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      name: String(data.name ?? ''),
-      authUid: (data.authUid as string | null) ?? null,
-      lang: normalizeLocale(data.lang),
-    };
-  });
+  return snap.docs.map((doc) => mapExhibitor(doc.id, doc.data()));
 }
 
 export async function getExhibitor(
@@ -171,25 +189,7 @@ export async function getExhibitor(
 ): Promise<EventExhibitor | null> {
   const doc = await exhibitorsRef(eventId).doc(exhibitorId).get();
   if (!doc.exists) return null;
-  const data = doc.data()!;
-  return {
-    id: doc.id,
-    name: String(data.name ?? ''),
-    authUid: (data.authUid as string | null) ?? null,
-    lang: normalizeLocale(data.lang),
-  };
-}
-
-/** 出店者ログイン（Firebase Auth の uid）から、その人の会社を引く。 */
-export async function findExhibitorByAuthUid(
-  eventId: string,
-  authUid: string,
-): Promise<EventExhibitor | null> {
-  const snap = await exhibitorsRef(eventId).where('authUid', '==', authUid).limit(1).get();
-  if (snap.empty) return null;
-  const doc = snap.docs[0];
-  const data = doc.data();
-  return { id: doc.id, name: String(data.name ?? ''), authUid, lang: normalizeLocale(data.lang) };
+  return mapExhibitor(doc.id, doc.data()!);
 }
 
 // ─── クーポン ───
