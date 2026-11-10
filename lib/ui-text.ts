@@ -813,6 +813,12 @@ export const ADMIN_TEXT = {
     zh: '活动设置',
     ko: '이벤트 설정',
   },
+  menuLabel: {
+    ja: 'メニュー',
+    en: 'Menu',
+    zh: '菜单',
+    ko: '메뉴',
+  },
   eventsListTitle: {
     ja: 'イベント一覧',
     en: 'Events',
@@ -1400,6 +1406,12 @@ export const ADMIN_TEXT = {
     en: 'Add coupon',
     zh: '登记优惠券',
     ko: '쿠폰 등록',
+  },
+  addingLabel: {
+    ja: '登録中…',
+    en: 'Adding…',
+    zh: '登记中…',
+    ko: '등록 중…',
   },
   couponAdded: {
     ja: 'クーポンを登録しました',

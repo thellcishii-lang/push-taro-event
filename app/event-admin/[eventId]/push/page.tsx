@@ -5,7 +5,8 @@
 // 即時プッシュは campaigns API でその場で送信され、送信数（課金根拠）が履歴に残る。
 // 消込は主催者として全クーポン対象（出店者画面と違い自社制限なし）。
 // 画面の固定文は4言語辞書（lib/ui-text.ts の ADMIN_TEXT）。
-// 見た目は承認済みモック準拠（ブランドバー＋白カード＋バイオレット）。
+// 見た目は承認済みモック準拠。ログイン後は共通シェル（components/AdminShell）
+// を使い、PC は左サイドバー固定の2カラム、スマホはアコーディオンになる。
 // フィードバック文は送信フォーム／消込フォーム／履歴それぞれの直下に出す。
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -22,11 +23,15 @@ import {
   ADMIN_CARD_SHADOW,
   ADMIN_PAGE_BG,
   AdminBrandBar,
+  ButtonSpinner,
+  adminButtonContentStyle,
   adminErrorTextStyle,
   adminFeedbackStyle,
   adminPageTitleStyle,
 } from '@/components/AdminBrand';
 import { adminText, uiText } from '@/lib/ui-text';
+import { AdminShell } from '@/components/AdminShell';
+import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from '../AdminNav';
 
 interface Campaign {
@@ -91,23 +96,6 @@ const primaryButtonStyle: React.CSSProperties = {
   boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
 };
 
-const logoutButtonStyle: React.CSSProperties = {
-  padding: '7px 14px',
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 999,
-  border: '1px solid #E3DEF2',
-  backgroundColor: '#ffffff',
-  color: '#3F3D56',
-  cursor: 'pointer',
-};
-
-const userEmailStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
-  color: '#64748b',
-};
-
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 17,
   fontWeight: 800,
@@ -168,6 +156,8 @@ export default function EventPushAdminPage() {
   const [redeemMessage, setRedeemMessage] = useState('');
   const [loadMessage, setLoadMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  // 送信中アクション（押したボタンの中でスピナーを回すため）。
+  const [pendingAction, setPendingAction] = useState<'send' | 'redeem' | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -227,6 +217,7 @@ export default function EventPushAdminPage() {
   const handleSend = async () => {
     if (!window.confirm(adminText(locale, 'confirmSend'))) return;
     setBusy(true);
+    setPendingAction('send');
     setPushMessage('');
     try {
       const data = await callApi(`/api/events/${eventId}/campaigns`, {
@@ -241,11 +232,13 @@ export default function EventPushAdminPage() {
       setPushMessage(e instanceof Error ? e.message : adminText(locale, 'sendFailed'));
     } finally {
       setBusy(false);
+      setPendingAction(null);
     }
   };
 
   const handleRedeem = async () => {
     setBusy(true);
+    setPendingAction('redeem');
     setRedeemMessage('');
     try {
       await callApi(`/api/events/${eventId}/redeem`, {
@@ -258,6 +251,7 @@ export default function EventPushAdminPage() {
       setRedeemMessage(e instanceof Error ? e.message : adminText(locale, 'redeemFailedMessage'));
     } finally {
       setBusy(false);
+      setPendingAction(null);
     }
   };
 
@@ -278,7 +272,10 @@ export default function EventPushAdminPage() {
             <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
           <button onClick={handleLogin} disabled={busy} style={{ ...primaryButtonStyle, width: '100%' }}>
-            {adminText(locale, 'loginButton')}
+            <span style={adminButtonContentStyle}>
+              {busy && <ButtonSpinner />}
+              {adminText(locale, 'loginButton')}
+            </span>
           </button>
           {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
         </section>
@@ -289,20 +286,15 @@ export default function EventPushAdminPage() {
   const sentCampaigns = campaigns.filter((c) => c.status === 'sent' || c.status === 'failed');
 
   return (
-    <main style={containerStyle}>
-      <AdminBrandBar
-        right={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={userEmailStyle}>{user.email}</span>
-            <AdminLanguageSelect locale={locale} onChange={setLocale} />
-            <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
-              {adminText(locale, 'logoutButton')}
-            </button>
-          </div>
-        }
-      />
+    <AdminShell
+      locale={locale}
+      email={user.email}
+      onLogout={() => void signOut(auth)}
+      languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
+      nav={<AdminNav eventId={eventId} current="①" locale={locale} />}
+    >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'pushPageTitle')}</h1>
-      <AdminNav eventId={eventId} current="①" locale={locale} />
+      <CapWarningBanner locale={locale} />
 
       <section style={{ ...cardStyle, marginTop: 22, padding: 24 }}>
         <h2 style={{ ...sectionTitleStyle, marginBottom: 14 }}>
@@ -322,7 +314,10 @@ export default function EventPushAdminPage() {
           disabled={busy || !title.trim() || !body.trim()}
           style={{ ...primaryButtonStyle, width: '100%', padding: '14px 22px', fontSize: 16 }}
         >
-          {adminText(locale, 'sendNowButton')}
+          <span style={adminButtonContentStyle}>
+            {pendingAction === 'send' && <ButtonSpinner />}
+            {adminText(locale, 'sendNowButton')}
+          </span>
         </button>
         {pushMessage && <p style={adminFeedbackStyle}>{pushMessage}</p>}
       </section>
@@ -334,7 +329,10 @@ export default function EventPushAdminPage() {
           <input style={inputStyle} value={claimCode} onChange={(e) => setClaimCode(e.target.value)} placeholder={adminText(locale, 'claimCodePlaceholder')} />
         </label>
         <button onClick={handleRedeem} disabled={busy || !claimCode.trim()} style={primaryButtonStyle}>
-          {adminText(locale, 'redeemButton')}
+          <span style={adminButtonContentStyle}>
+            {pendingAction === 'redeem' && <ButtonSpinner />}
+            {adminText(locale, 'redeemButton')}
+          </span>
         </button>
         {redeemMessage && <p style={adminFeedbackStyle}>{redeemMessage}</p>}
       </section>
@@ -375,6 +373,6 @@ export default function EventPushAdminPage() {
           </div>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

@@ -99,3 +99,19 @@ export const adminErrorTextStyle: React.CSSProperties = {
   ...adminFeedbackStyle,
   color: '#b91c1c',
 };
+
+/**
+ * 送信中スピナー。Firestore 往復の待ち時間に、押したボタンの中で
+ * 回して「処理中」を一目で示す（アニメーションは globals.css）。
+ */
+export function ButtonSpinner() {
+  return <span className="admin-spinner" aria-hidden="true" />;
+}
+
+/** スピナー＋文言を横並びにするボタン内ラッパー。 */
+export const adminButtonContentStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+};
