@@ -12,7 +12,9 @@
 // （判定は GET /api/organizers/me、変更系API側にも同じゲートがある）。
 // 画面の固定文は4言語辞書（lib/ui-text.ts）。主催者の表示言語は
 // この端末に保存される個人の選択（components/AdminLocale.tsx）。
-// 見た目は承認済みモック準拠（ブランドバー＋白カード＋バイオレット）。
+// 見た目は承認済みモック準拠。ログイン後は共通シェル（components/AdminShell）
+// を使い、PC は左サイドバー固定の2カラム、スマホはブランドバー＋
+// メニュー開閉ボタンのアコーディオンになる。
 // フィードバック文は、それを起こした操作のすぐ近くに出す
 // （読込エラーは一覧の上、保存結果はフォーム内）。
 import { useCallback, useEffect, useState } from 'react';
@@ -27,11 +29,15 @@ import { auth } from '@/lib/firebase-client';
 import PasswordInput from '@/components/PasswordInput';
 import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
 import { CapWarningBanner } from '@/components/CapWarningBanner';
+import { AdminShell } from '@/components/AdminShell';
+import { AdminNav } from './[eventId]/AdminNav';
 import {
   ADMIN_CARD_BORDER,
   ADMIN_CARD_SHADOW,
   ADMIN_PAGE_BG,
   AdminBrandBar,
+  ButtonSpinner,
+  adminButtonContentStyle,
   adminErrorTextStyle,
   adminFeedbackStyle,
   adminPageTitleStyle,
@@ -405,7 +411,10 @@ export default function EventAdminPage() {
             <PasswordInput style={inputStyle} value={password} onChange={setPassword} autoComplete="current-password" />
           </label>
           <button onClick={handleLogin} disabled={busy} style={{ ...primaryButtonStyle, width: '100%' }}>
-            {adminText(locale, 'loginButton')}
+            <span style={adminButtonContentStyle}>
+              {busy && <ButtonSpinner />}
+              {adminText(locale, 'loginButton')}
+            </span>
           </button>
           {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
         </section>
@@ -447,7 +456,10 @@ export default function EventAdminPage() {
             <PasswordInput style={inputStyle} value={newPasswordConfirm} onChange={setNewPasswordConfirm} autoComplete="new-password" />
           </label>
           <button onClick={handlePasswordChange} disabled={busy} style={{ ...primaryButtonStyle, width: '100%' }}>
-            {adminText(locale, 'passwordChangeButton')}
+            <span style={adminButtonContentStyle}>
+              {busy && <ButtonSpinner />}
+              {adminText(locale, 'passwordChangeButton')}
+            </span>
           </button>
           {gateMessage && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{gateMessage}</p>}
         </section>
@@ -466,18 +478,13 @@ export default function EventAdminPage() {
     );
 
   return (
-    <main style={containerStyle}>
-      <AdminBrandBar
-        right={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={userEmailStyle}>{user.email}</span>
-            <AdminLanguageSelect locale={locale} onChange={setLocale} />
-            <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
-              {adminText(locale, 'logoutButton')}
-            </button>
-          </div>
-        }
-      />
+    <AdminShell
+      locale={locale}
+      email={user.email}
+      onLogout={() => void signOut(auth)}
+      languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
+      nav={<AdminNav current="設定" locale={locale} />}
+    >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'adminTitle')}</h1>
 
       <CapWarningBanner locale={locale} />
@@ -749,10 +756,13 @@ export default function EventAdminPage() {
           disabled={busy || (!selected && capReached)}
           style={primaryButtonStyle}
         >
-          {selected ? adminText(locale, 'saveButton') : adminText(locale, 'createButton')}
+          <span style={adminButtonContentStyle}>
+            {busy && <ButtonSpinner />}
+            {selected ? adminText(locale, 'saveButton') : adminText(locale, 'createButton')}
+          </span>
         </button>
         {message && <p style={adminFeedbackStyle}>{message}</p>}
       </section>
-    </main>
+    </AdminShell>
   );
 }

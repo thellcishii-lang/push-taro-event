@@ -5,9 +5,12 @@
 // 出店者（会社）の登録と、クーポンの登録・一覧を行う。クーポンはイベント全体で上限あり。
 // 案内PDFの管理もこの画面で行う。
 // 画面の固定文は4言語辞書（lib/ui-text.ts の ADMIN_TEXT）。
-// 見た目は承認済みモック準拠（ブランドバー＋白カード＋バイオレット）。
+// 見た目は承認済みモック準拠。ログイン後は共通シェル（components/AdminShell）
+// を使い、PC は左サイドバー固定の2カラム、スマホはアコーディオンになる。
 // フィードバック文は、出店者／クーポン／PDFそれぞれのフォームの直下に出す
 // （以前は画面最下部にしか出ず、実利用で「何も起きない」ように見えた）。
+// 登録成功時は追加された行までスクロールして一時的にハイライトし、
+// 送信中はボタンの文言も「登録中…」に変えて手応えを出す。
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -23,11 +26,15 @@ import {
   ADMIN_CARD_SHADOW,
   ADMIN_PAGE_BG,
   AdminBrandBar,
+  ButtonSpinner,
+  adminButtonContentStyle,
   adminErrorTextStyle,
   adminFeedbackStyle,
   adminPageTitleStyle,
 } from '@/components/AdminBrand';
 import { adminText, uiText } from '@/lib/ui-text';
+import { AdminShell } from '@/components/AdminShell';
+import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from '../AdminNav';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { useDropzone } from 'react-dropzone';
@@ -110,23 +117,6 @@ const primaryButtonStyle: React.CSSProperties = {
   boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
 };
 
-const logoutButtonStyle: React.CSSProperties = {
-  padding: '7px 14px',
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 999,
-  border: '1px solid #E3DEF2',
-  backgroundColor: '#ffffff',
-  color: '#3F3D56',
-  cursor: 'pointer',
-};
-
-const userEmailStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
-  color: '#64748b',
-};
-
 const dangerButtonStyle: React.CSSProperties = {
   padding: '7px 16px',
   fontSize: 13,
@@ -186,6 +176,19 @@ export default function EventCouponAdminPage() {
   const [couponMessage, setCouponMessage] = useState('');
   const [pdfMessage, setPdfMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  // 送信中フォーム（ボタンの文言を「登録中…」に切り替えるため）。
+  const [pendingForm, setPendingForm] = useState<'exhibitor' | 'coupon' | null>(null);
+  // 登録直後にスクロール＋ハイライトする行。
+  const [highlight, setHighlight] = useState<{ kind: 'exhibitor' | 'coupon'; id: string } | null>(null);
+
+  // 追加された行が見える位置までスクロールし、しばらくハイライトする。
+  useEffect(() => {
+    if (!highlight) return;
+    const el = document.getElementById(`admin-row-${highlight.kind}-${highlight.id}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const timer = setTimeout(() => setHighlight(null), 2600);
+    return () => clearTimeout(timer);
+  }, [highlight]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -252,6 +255,7 @@ export default function EventCouponAdminPage() {
 
   const handleAddExhibitor = async () => {
     setBusy(true);
+    setPendingForm('exhibitor');
     setExhibitorMessage('');
     try {
       const result = await callApi(`/api/events/${eventId}/exhibitors`, {
@@ -264,18 +268,22 @@ export default function EventCouponAdminPage() {
         adminText(locale, result?.accountCreated ? 'exhibitorAddedInvited' : 'exhibitorAdded'),
       );
       await loadAll();
+      const newId = typeof result?.exhibitor?.id === 'string' ? result.exhibitor.id : null;
+      if (newId) setHighlight({ kind: 'exhibitor', id: newId });
     } catch (e) {
       setExhibitorMessage(e instanceof Error ? e.message : adminText(locale, 'exhibitorAddFailed'));
     } finally {
       setBusy(false);
+      setPendingForm(null);
     }
   };
 
   const handleAddCoupon = async () => {
     setBusy(true);
+    setPendingForm('coupon');
     setCouponMessage('');
     try {
-      await callApi(`/api/events/${eventId}/coupons`, {
+      const result = await callApi(`/api/events/${eventId}/coupons`, {
         method: 'POST',
         body: JSON.stringify({
           exhibitorId: couponForm.exhibitorId,
@@ -290,10 +298,13 @@ export default function EventCouponAdminPage() {
       setCouponForm({ ...couponForm, title: '', description: '', keywords: '' });
       setCouponMessage(adminText(locale, 'couponAdded'));
       await loadAll();
+      const newId = typeof result?.coupon?.id === 'string' ? result.coupon.id : null;
+      if (newId) setHighlight({ kind: 'coupon', id: newId });
     } catch (e) {
       setCouponMessage(e instanceof Error ? e.message : adminText(locale, 'couponAddFailed'));
     } finally {
       setBusy(false);
+      setPendingForm(null);
     }
   };
 
@@ -367,7 +378,10 @@ export default function EventCouponAdminPage() {
             <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
           <button onClick={handleLogin} disabled={busy} style={{ ...primaryButtonStyle, width: '100%' }}>
-            {adminText(locale, 'loginButton')}
+            <span style={adminButtonContentStyle}>
+              {busy && <ButtonSpinner />}
+              {adminText(locale, 'loginButton')}
+            </span>
           </button>
           {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
         </section>
@@ -376,20 +390,15 @@ export default function EventCouponAdminPage() {
   }
 
   return (
-    <main style={containerStyle}>
-      <AdminBrandBar
-        right={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={userEmailStyle}>{user.email}</span>
-            <AdminLanguageSelect locale={locale} onChange={setLocale} />
-            <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
-              {adminText(locale, 'logoutButton')}
-            </button>
-          </div>
-        }
-      />
+    <AdminShell
+      locale={locale}
+      email={user.email}
+      onLogout={() => void signOut(auth)}
+      languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
+      nav={<AdminNav eventId={eventId} current="③" locale={locale} />}
+    >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'couponsPageTitle')}</h1>
-      <AdminNav eventId={eventId} current="③" locale={locale} />
+      <CapWarningBanner locale={locale} />
       {loadMessage && <p style={adminErrorTextStyle}>{loadMessage}</p>}
 
       <section style={{ marginTop: 22 }}>
@@ -401,6 +410,7 @@ export default function EventCouponAdminPage() {
             {exhibitors.map((exhibitor, i) => (
               <div
                 key={exhibitor.id}
+                id={`admin-row-exhibitor-${exhibitor.id}`}
                 style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -409,6 +419,15 @@ export default function EventCouponAdminPage() {
                   fontSize: 14,
                   padding: '11px 0',
                   borderBottom: i < exhibitors.length - 1 ? '1px solid #F0EDF8' : 'none',
+                  transition: 'background-color 0.5s ease',
+                  ...(highlight?.kind === 'exhibitor' && highlight.id === exhibitor.id
+                    ? {
+                        backgroundColor: '#F3EFFF',
+                        borderRadius: 8,
+                        padding: '11px 10px',
+                        margin: '0 -10px',
+                      }
+                    : null),
                 }}
               >
                 <span style={{ fontWeight: 600 }}>{exhibitor.name}</span>
@@ -432,7 +451,12 @@ export default function EventCouponAdminPage() {
             {adminText(locale, 'exhibitorEmailNote')}
           </p>
           <button onClick={handleAddExhibitor} disabled={busy || !exhibitorName.trim()} style={primaryButtonStyle}>
-            {adminText(locale, 'addExhibitorButton')}
+            <span style={adminButtonContentStyle}>
+              {pendingForm === 'exhibitor' && <ButtonSpinner />}
+              {pendingForm === 'exhibitor'
+                ? adminText(locale, 'addingLabel')
+                : adminText(locale, 'addExhibitorButton')}
+            </span>
           </button>
           {exhibitorMessage && <p style={adminFeedbackStyle}>{exhibitorMessage}</p>}
         </div>
@@ -481,7 +505,19 @@ export default function EventCouponAdminPage() {
           )}
         </div>
         {coupons.map((coupon) => (
-          <article key={coupon.id} style={{ ...cardStyle, padding: '18px 20px', marginTop: 12 }}>
+          <article
+            key={coupon.id}
+            id={`admin-row-coupon-${coupon.id}`}
+            style={{
+              ...cardStyle,
+              padding: '18px 20px',
+              marginTop: 12,
+              transition: 'background-color 0.5s ease, border-color 0.5s ease',
+              ...(highlight?.kind === 'coupon' && highlight.id === coupon.id
+                ? { backgroundColor: '#F3EFFF', borderColor: VIOLET }
+                : null),
+            }}
+          >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
               <div style={{ fontWeight: 700, fontSize: 15 }}>{coupon.title}</div>
               {!coupon.active && (
@@ -542,7 +578,12 @@ export default function EventCouponAdminPage() {
             disabled={busy || !couponForm.exhibitorId || !couponForm.title.trim() || coupons.length >= couponCap}
             style={primaryButtonStyle}
           >
-            {adminText(locale, 'addCouponButton')}
+            <span style={adminButtonContentStyle}>
+              {pendingForm === 'coupon' && <ButtonSpinner />}
+              {pendingForm === 'coupon'
+                ? adminText(locale, 'addingLabel')
+                : adminText(locale, 'addCouponButton')}
+            </span>
           </button>
           {couponMessage && <p style={adminFeedbackStyle}>{couponMessage}</p>}
         </div>
@@ -598,6 +639,6 @@ export default function EventCouponAdminPage() {
           </div>
         </div>
       </section>
-    </main>
+    </AdminShell>
   );
 }

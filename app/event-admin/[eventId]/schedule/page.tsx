@@ -4,7 +4,8 @@
 // Push-taro EVENT 管理画面②：予約配信。
 // 15分刻み（00/15/30/45分）で複数の予約を入れられる。実行は event-tick が担う。
 // 画面の固定文は4言語辞書（lib/ui-text.ts の ADMIN_TEXT）。
-// 見た目は承認済みモック準拠（ブランドバー＋白カード＋バイオレット）。
+// 見た目は承認済みモック準拠。ログイン後は共通シェル（components/AdminShell）
+// を使い、PC は左サイドバー固定の2カラム、スマホはアコーディオンになる。
 // フィードバック文は予約フォームの直下／予約一覧の直上に出す。
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
@@ -21,10 +22,14 @@ import {
   ADMIN_CARD_SHADOW,
   ADMIN_PAGE_BG,
   AdminBrandBar,
+  ButtonSpinner,
+  adminButtonContentStyle,
   adminFeedbackStyle,
   adminPageTitleStyle,
 } from '@/components/AdminBrand';
 import { adminText, uiText } from '@/lib/ui-text';
+import { AdminShell } from '@/components/AdminShell';
+import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from '../AdminNav';
 
 interface Campaign {
@@ -97,23 +102,6 @@ const primaryButtonStyle: React.CSSProperties = {
   boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
 };
 
-const logoutButtonStyle: React.CSSProperties = {
-  padding: '7px 14px',
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 999,
-  border: '1px solid #E3DEF2',
-  backgroundColor: '#ffffff',
-  color: '#3F3D56',
-  cursor: 'pointer',
-};
-
-const userEmailStyle: React.CSSProperties = {
-  fontSize: 13,
-  fontWeight: 600,
-  color: '#64748b',
-};
-
 const dangerButtonStyle: React.CSSProperties = {
   padding: '7px 16px',
   fontSize: 13,
@@ -157,6 +145,8 @@ export default function EventScheduleAdminPage() {
   const [formMessage, setFormMessage] = useState('');
   const [listMessage, setListMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  // 送信中アクション（押したボタンの中でスピナーを回すため）。
+  const [pendingAction, setPendingAction] = useState<'schedule' | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -214,6 +204,7 @@ export default function EventScheduleAdminPage() {
 
   const handleSchedule = async () => {
     setBusy(true);
+    setPendingAction('schedule');
     setFormMessage('');
     try {
       await callApi(`/api/events/${eventId}/campaigns`, {
@@ -231,6 +222,7 @@ export default function EventScheduleAdminPage() {
       setFormMessage(e instanceof Error ? e.message : adminText(locale, 'scheduleFailed'));
     } finally {
       setBusy(false);
+      setPendingAction(null);
     }
   };
 
@@ -266,7 +258,10 @@ export default function EventScheduleAdminPage() {
             <input style={inputStyle} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </label>
           <button onClick={handleLogin} disabled={busy} style={{ ...primaryButtonStyle, width: '100%' }}>
-            {adminText(locale, 'loginButton')}
+            <span style={adminButtonContentStyle}>
+              {busy && <ButtonSpinner />}
+              {adminText(locale, 'loginButton')}
+            </span>
           </button>
           {message && <p style={{ color: '#b91c1c', marginTop: 12, fontSize: 14 }}>{message}</p>}
         </section>
@@ -280,20 +275,15 @@ export default function EventScheduleAdminPage() {
   const finished = campaigns.filter((c) => c.kind === 'scheduled' && c.status !== 'scheduled');
 
   return (
-    <main style={containerStyle}>
-      <AdminBrandBar
-        right={
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={userEmailStyle}>{user.email}</span>
-            <AdminLanguageSelect locale={locale} onChange={setLocale} />
-            <button onClick={() => void signOut(auth)} style={logoutButtonStyle}>
-              {adminText(locale, 'logoutButton')}
-            </button>
-          </div>
-        }
-      />
+    <AdminShell
+      locale={locale}
+      email={user.email}
+      onLogout={() => void signOut(auth)}
+      languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
+      nav={<AdminNav eventId={eventId} current="②" locale={locale} />}
+    >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'schedulePageTitle')}</h1>
-      <AdminNav eventId={eventId} current="②" locale={locale} />
+      <CapWarningBanner locale={locale} />
 
       <section style={{ ...cardStyle, marginTop: 22, padding: 24 }}>
         <h2 style={{ fontSize: 17, fontWeight: 800, margin: '0 0 14px' }}>{adminText(locale, 'newScheduleTitle')}</h2>
@@ -324,7 +314,10 @@ export default function EventScheduleAdminPage() {
           disabled={busy || !form.title.trim() || !form.body.trim() || !form.date}
           style={primaryButtonStyle}
         >
-          {adminText(locale, 'scheduleButton')}
+          <span style={adminButtonContentStyle}>
+            {pendingAction === 'schedule' && <ButtonSpinner />}
+            {adminText(locale, 'scheduleButton')}
+          </span>
         </button>
         {formMessage && <p style={adminFeedbackStyle}>{formMessage}</p>}
       </section>
@@ -393,6 +386,6 @@ export default function EventScheduleAdminPage() {
           </div>
         )}
       </section>
-    </main>
+    </AdminShell>
   );
 }

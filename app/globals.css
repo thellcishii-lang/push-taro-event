@@ -1,2 +1,78 @@
 /* app/globals.css */
 @import "tailwindcss";
+
+/*
+ * 主催者管理画面の共有シェル（components/AdminShell.tsx）のレイアウト。
+ * PC: 左サイドバー固定の2カラム / スマホ: サイドバーを畳み、
+ * ブランドバー＋メニュー開閉ボタンのアコーディオンにする。
+ * レスポンシブの出し分けはメディアクエリが要るため、ここに置く。
+ */
+.admin-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  background-color: #eeecf6;
+  font-family: sans-serif;
+  color: #0f172a;
+}
+.admin-shell__sidebar {
+  width: 270px;
+  flex-shrink: 0;
+  background-color: #ffffff;
+  border-right: 1px solid #eae7f5;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 18px 18px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+.admin-shell__mobilebar {
+  display: none;
+}
+.admin-shell__main {
+  flex: 1;
+  min-width: 0;
+}
+.admin-shell__content {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 6px 30px 56px;
+  box-sizing: border-box;
+}
+@media (max-width: 900px) {
+  .admin-shell {
+    flex-direction: column;
+  }
+  .admin-shell__sidebar {
+    display: none;
+  }
+  .admin-shell__mobilebar {
+    display: block;
+    padding: 16px 16px 0;
+  }
+  .admin-shell__content {
+    max-width: 880px;
+    padding: 0 16px 48px;
+  }
+}
+
+/* 送信ボタンの処理中スピナー（components/AdminBrand.tsx の ButtonSpinner）。 */
+@keyframes admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.admin-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  animation: admin-spin 0.7s linear infinite;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}

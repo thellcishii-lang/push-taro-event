@@ -2,12 +2,16 @@
 
 // app/event-admin/[eventId]/AdminNav.tsx
 // 管理画面①②③とイベント設定の間の共通ナビ。
-// 承認済みモックに合わせ、白カードの中にアイコン付きメニューを縦に並べ、
-// 現在地はバイオレットの塗りつぶしで示す。
+// AdminShell のサイドバー（PC）とアコーディオン（スマホ）の中に置かれる。
+// plain=true のときはサイドバー用にカード枠なし、通常はスマホ用に
+// 白カードの中にアイコン付きメニューを縦に並べる。
+// 現在地はどちらもバイオレットの塗りつぶしで示す（承認済みモック準拠）。
+// 並び順: イベント設定 → プッシュ＋消込 → 予約配信 → クーポン管理。
+// eventId が無い場合（主催者トップ）はイベント設定のみを現在地として出す。
+// 上限警告バナー（CapWarningBanner）は各画面のコンテンツ側で描画する。
 import type { ReactNode } from 'react';
 import { adminText } from '@/lib/ui-text';
 import type { Locale } from '@/lib/i18n';
-import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { ADMIN_CARD_BORDER, ADMIN_CARD_SHADOW, ADMIN_VIOLET } from '@/components/AdminBrand';
 
 function NavIcon({ children }: { children: ReactNode }) {
@@ -80,51 +84,62 @@ const itemCurrentStyle: React.CSSProperties = {
   boxShadow: '0 4px 12px rgba(109, 40, 217, 0.30)',
 };
 
+const cardNavStyle: React.CSSProperties = {
+  marginTop: 18,
+  backgroundColor: '#ffffff',
+  border: `1px solid ${ADMIN_CARD_BORDER}`,
+  borderRadius: 18,
+  boxShadow: ADMIN_CARD_SHADOW,
+  padding: 10,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+};
+
+const plainNavStyle: React.CSSProperties = {
+  marginTop: 8,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+};
+
 export function AdminNav({
   eventId,
   current,
   locale,
+  plain = false,
 }: {
-  eventId: string;
+  eventId?: string;
   current: string;
   locale: Locale;
+  /** サイドバー内ではカード枠なしにする（AdminShell が指定）。 */
+  plain?: boolean;
 }) {
   const items = [
     { key: '設定', href: '/event-admin', label: adminText(locale, 'navSettings'), icon: settingsIcon },
-    { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush'), icon: pushIcon },
-    { key: '②', href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule'), icon: scheduleIcon },
-    { key: '③', href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons'), icon: couponsIcon },
+    ...(eventId
+      ? [
+          { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush'), icon: pushIcon },
+          { key: '②', href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule'), icon: scheduleIcon },
+          { key: '③', href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons'), icon: couponsIcon },
+        ]
+      : []),
   ];
   return (
-    <>
-      <nav
-        style={{
-          marginTop: 18,
-          backgroundColor: '#ffffff',
-          border: `1px solid ${ADMIN_CARD_BORDER}`,
-          borderRadius: 18,
-          boxShadow: ADMIN_CARD_SHADOW,
-          padding: 10,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 4,
-        }}
-      >
-        {items.map((item) =>
-          item.key === current ? (
-            <span key={item.href} style={itemCurrentStyle} aria-current="page">
-              <span style={{ display: 'flex', color: '#ffffff' }}>{item.icon}</span>
-              {item.label}
-            </span>
-          ) : (
-            <a key={item.href} href={item.href} style={itemLinkStyle}>
-              <span style={{ display: 'flex', color: ADMIN_VIOLET }}>{item.icon}</span>
-              {item.label}
-            </a>
-          ),
-        )}
-      </nav>
-      <CapWarningBanner locale={locale} />
-    </>
+    <nav style={plain ? plainNavStyle : cardNavStyle}>
+      {items.map((item) =>
+        item.key === current ? (
+          <span key={item.href} style={itemCurrentStyle} aria-current="page">
+            <span style={{ display: 'flex', color: '#ffffff' }}>{item.icon}</span>
+            {item.label}
+          </span>
+        ) : (
+          <a key={item.href} href={item.href} style={itemLinkStyle}>
+            <span style={{ display: 'flex', color: ADMIN_VIOLET }}>{item.icon}</span>
+            {item.label}
+          </a>
+        ),
+      )}
+    </nav>
   );
 }
