@@ -509,6 +509,18 @@ export const REDEEM_TEXT = {
     zh: '错误（{status}）',
     ko: '오류({status})',
   },
+  redeemProgress: {
+    ja: '消込 {redeemed}件 / 残り {left}件',
+    en: '{redeemed} redeemed / {left} left',
+    zh: '已核销 {redeemed} 张 / 剩余 {left} 张',
+    ko: '사용 처리 {redeemed}건 / 남은 {left}건',
+  },
+  resultTime: {
+    ja: '本日 {time}',
+    en: 'Today {time}',
+    zh: '今天 {time}',
+    ko: '오늘 {time}',
+  },
 } as const satisfies Record<string, Record<Locale, string>>;
 
 export type RedeemTextKey = keyof typeof REDEEM_TEXT;
