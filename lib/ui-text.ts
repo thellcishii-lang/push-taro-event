@@ -1090,10 +1090,10 @@ export const ADMIN_TEXT = {
     ko: '사용 처리 로그인용 이메일(선택)',
   },
   exhibitorEmailNote: {
-    ja: '出店者のログイン用アカウント（メール+パスワード）を先に作成しておくと、そのメールアドレスで連携できます。',
-    en: 'If you create the exhibitor login account (email + password) first, it can be linked by that email address.',
-    zh: '若先创建参展商登录账户（邮箱+密码），即可用该邮箱关联。',
-    ko: '출점자 로그인 계정(이메일+비밀번호)을 먼저 만들어 두면 그 이메일로 연동할 수 있습니다.',
+    ja: 'メールアドレスを入力すると、そのアドレスのアカウントと連携します。アカウントが無い場合は自動で作成し、出店者にパスワード設定のご案内メールを送信します。',
+    en: 'Enter an email address to link that account. If no account exists yet, one is created automatically and a password setup email is sent to the exhibitor.',
+    zh: '输入邮箱即可关联该账户。若尚无账户，将自动创建并向参展商发送密码设置邮件。',
+    ko: '이메일을 입력하면 해당 계정과 연동됩니다. 계정이 없으면 자동으로 생성하고 출점자에게 비밀번호 설정 안내 메일을 보냅니다.',
   },
   addExhibitorButton: {
     ja: '出店者を登録',
@@ -1106,6 +1106,12 @@ export const ADMIN_TEXT = {
     en: 'Exhibitor added',
     zh: '参展商已登记',
     ko: '출점자를 등록했습니다',
+  },
+  exhibitorAddedInvited: {
+    ja: '出店者を登録し、パスワード設定のご案内メールを送信しました',
+    en: 'Exhibitor added; a password setup email has been sent',
+    zh: '参展商已登记，已发送密码设置邮件',
+    ko: '출점자를 등록하고 비밀번호 설정 안내 메일을 보냈습니다',
   },
   exhibitorAddFailed: {
     ja: '出店者の登録に失敗しました',
