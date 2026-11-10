@@ -36,6 +36,8 @@ function toEventConfig(id: string, data: FirebaseFirestore.DocumentData): EventC
     resetTime: data.resetTime,
     subscriberCap: data.subscriberCap,
     defaultLocale: normalizeLocale(data.defaultLocale),
+    // 入場用QRは既定オフ。導入前に作られたイベントには項目自体が無い
+    admissionQrEnabled: data.admissionQrEnabled === true,
     couponCap: data.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays: data.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
     status: data.status,
@@ -68,6 +70,7 @@ export async function createEvent(input: CreateEventInput): Promise<EventConfig>
     resetTime,
     subscriberCap: input.subscriberCap ?? DEFAULT_SUBSCRIBER_CAP,
     defaultLocale: input.defaultLocale ?? DEFAULT_LOCALE,
+    admissionQrEnabled: input.admissionQrEnabled ?? false,
     couponCap: input.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays:
       input.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
@@ -194,6 +197,7 @@ export type UpdateEventInput = Partial<
     | 'resetTime'
     | 'subscriberCap'
     | 'defaultLocale'
+    | 'admissionQrEnabled'
     | 'couponCap'
     | 'backupRetentionDays'
     | 'status'
@@ -211,6 +215,12 @@ export async function updateEvent(
   }
   if (patch.defaultLocale !== undefined && !isLocale(patch.defaultLocale)) {
     throw new Error('対応していない言語です（ja / en / zh / ko）');
+  }
+  if (
+    patch.admissionQrEnabled !== undefined &&
+    typeof patch.admissionQrEnabled !== 'boolean'
+  ) {
+    throw new Error('入場用QR設定の形式が不正です');
   }
   if (
     patch.startDate !== undefined &&

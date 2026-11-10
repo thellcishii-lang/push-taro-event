@@ -23,6 +23,8 @@ export async function GET(
       status: event.status,
       resetMode: event.resetMode,
       defaultLocale: event.defaultLocale,
+      // 入場用QRの取り込みが有効かどうか（来場者画面の表示制御に使う）
+      admissionQrEnabled: event.admissionQrEnabled,
     },
   });
 }
