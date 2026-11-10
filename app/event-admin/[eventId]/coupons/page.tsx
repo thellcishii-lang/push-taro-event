@@ -238,13 +238,15 @@ export default function EventCouponAdminPage() {
     setBusy(true);
     setMessage('');
     try {
-      await callApi(`/api/events/${eventId}/exhibitors`, {
+      const result = await callApi(`/api/events/${eventId}/exhibitors`, {
         method: 'POST',
         body: JSON.stringify({ name: exhibitorName, authEmail: exhibitorEmail || undefined }),
       });
       setExhibitorName('');
       setExhibitorEmail('');
-      setMessage(adminText(locale, 'exhibitorAdded'));
+      setMessage(
+        adminText(locale, result?.accountCreated ? 'exhibitorAddedInvited' : 'exhibitorAdded'),
+      );
       await loadAll();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : adminText(locale, 'exhibitorAddFailed'));
