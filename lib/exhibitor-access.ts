@@ -269,6 +269,26 @@ await exhibitorsRef(eventId).doc(exhibitorId).update({ email});
 },
 };
 
+// ─── アプリの origin と消込ページ URL ───
+
+/**
+* 本番の App Hosting origin（本家側 lib/event-provisioning.ts の定数と同じ値）。
+* 将来の独自ドメイン化に備え、環境変数 NEXT_PUBLIC_APP_ORIGIN があれば
+* そちらを優先する（末尾のスラッシュは取り除く）。
+*/
+export const APP_ORIGIN =
+'https://push-taro-event--push-taro-event.asia-east1.hosted.app';
+
+export function resolveAppOrigin(): string {
+const fromEnv = process.env.NEXT_PUBLIC_APP_ORIGIN?.trim();
+return (fromEnv || APP_ORIGIN).replace(/\/+$/, '');
+}
+
+/** 出店者の消込（ログイン）ページ URL。メール本文に載せて出店者に渡す。 */
+export function exhibitorRedeemUrl(eventId: string): string {
+return `${resolveAppOrigin()}/e/${encodeURIComponent(eventId)}/redeem`;
+}
+
 // ─── メール送信 ───
 
 export type ExhibitorMailSender = (args: {
@@ -299,6 +319,7 @@ function buildPasswordEmailHtml(input: {
 exhibitorName: string;
 eventName?: string | null;
 code: string;
+loginUrl: string;
 reissued: boolean;
 }): string {
 const eventPart = input.eventName
@@ -311,7 +332,9 @@ return `
 <p>${escapeHtml(input.exhibitorName)} 様</p>
 ${lead}
 <p>クーポンの消し込みに使う、出店者ログインのパスワード（このイベント専用）をお知らせします。</p>
+<p>ログインIDは ご登録のメールアドレスです</p>
 <p>パスワード: <strong>${escapeHtml(input.code)}</strong></p>
+<p>ログインURL: ${escapeHtml(input.loginUrl)}</p>
 <p>消込ページで、このメールアドレスと上記のパスワードを入力してログインしてください。パスワードはイベントごとに異なります。</p>
 <p>※パスワードは他の人に教えないでください。</p>
 <p>※このメールに心当たりがない場合は、破棄していただいて構いません。</p>
@@ -322,11 +345,18 @@ ${lead}
 export function buildExhibitorPasswordEmail(input: {
 exhibitorName: string;
 eventName?: string | null;
+eventId: string;
 code: string;
 }): { subject: string; html: string} {
 return {
 subject: '出店者ログイン用パスワードのお知らせ',
-html: buildPasswordEmailHtml({...input, reissued: false}),
+html: buildPasswordEmailHtml({
+exhibitorName: input.exhibitorName,
+eventName: input.eventName,
+code: input.code,
+loginUrl: exhibitorRedeemUrl(input.eventId),
+reissued: false,
+}),
 };
 }
 
@@ -334,11 +364,18 @@ html: buildPasswordEmailHtml({...input, reissued: false}),
 export function buildExhibitorPasswordReissueEmail(input: {
 exhibitorName: string;
 eventName?: string | null;
+eventId: string;
 code: string;
 }): { subject: string; html: string} {
 return {
 subject: '出店者ログイン用パスワード再発行のお知らせ',
-html: buildPasswordEmailHtml({...input, reissued: true}),
+html: buildPasswordEmailHtml({
+exhibitorName: input.exhibitorName,
+eventName: input.eventName,
+code: input.code,
+loginUrl: exhibitorRedeemUrl(input.eventId),
+reissued: true,
+}),
 };
 }
 
@@ -399,6 +436,7 @@ await hashAccessCode(code),
 const mail = buildExhibitorPasswordEmail({
 exhibitorName: name,
 eventName: input.eventName,
+eventId: input.eventId,
 code,
 });
 let mailSent = false;
@@ -506,6 +544,7 @@ await hashAccessCode(code),
 const mail = buildExhibitorPasswordReissueEmail({
 exhibitorName: exhibitor.name,
 eventName: input.eventName,
+eventId: input.eventId,
 code,
 });
 let mailSent = false;

@@ -3,8 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ACCESS_CODE_ALPHABET,
   ACCESS_CODE_LENGTH,
+  APP_ORIGIN,
   authenticateExhibitor,
+  buildExhibitorPasswordEmail,
+  buildExhibitorPasswordReissueEmail,
   ExhibitorAccessError,
+  exhibitorRedeemUrl,
   generateAccessCode,
   hashAccessCode,
   isValidExhibitorEmail,
@@ -13,6 +17,7 @@ import {
   registerExhibitor,
   reissueExhibitorPassword,
   requestExhibitorPasswordReset,
+  resolveAppOrigin,
   verifyAccessCode,
   type ExhibitorAccessDeps,
   type StoredExhibitorAccess,
@@ -219,6 +224,78 @@ describe('registerExhibitor', () => {
     );
     expect(result.mailSent).toBe(false);
     expect(records.get(result.exhibitorId)?.accessCodeHash).toMatch(/^scrypt\$/);
+  });
+});
+
+describe('消込ページ URL', () => {
+  it('既定では本番 origin の /e/{eventId}/redeem になる', () => {
+    expect(resolveAppOrigin()).toBe(APP_ORIGIN);
+    expect(exhibitorRedeemUrl(EVENT_ID)).toBe(`${APP_ORIGIN}/e/${EVENT_ID}/redeem`);
+  });
+
+  it('NEXT_PUBLIC_APP_ORIGIN があればそちらを優先し、末尾スラッシュを除く', () => {
+    const original = process.env.NEXT_PUBLIC_APP_ORIGIN;
+    process.env.NEXT_PUBLIC_APP_ORIGIN = 'https://example.com/';
+    try {
+      expect(resolveAppOrigin()).toBe('https://example.com');
+      expect(exhibitorRedeemUrl(EVENT_ID)).toBe(
+        `https://example.com/e/${EVENT_ID}/redeem`,
+      );
+    } finally {
+      if (original === undefined) delete process.env.NEXT_PUBLIC_APP_ORIGIN;
+      else process.env.NEXT_PUBLIC_APP_ORIGIN = original;
+    }
+  });
+
+  it('登録・再発行メールの本文にログインURLが含まれる', async () => {
+    const { deps, sent } = fakeDeps();
+    const registered = await registerExhibitor(
+      { eventId: EVENT_ID, name: 'テスト出店者', email: EMAIL },
+      deps,
+    );
+    expect(sent[0].html).toContain(
+      `ログインURL: ${APP_ORIGIN}/e/${EVENT_ID}/redeem`,
+    );
+
+    await reissueExhibitorPassword(
+      { eventId: EVENT_ID, exhibitorId: registered.exhibitorId },
+      deps,
+    );
+    expect(sent[1].html).toContain(
+      `ログインURL: ${APP_ORIGIN}/e/${EVENT_ID}/redeem`,
+    );
+  });
+
+  it('メール本文は ログインIDの説明 → パスワード → ログインURL の順に並ぶ', async () => {
+    const { deps, sent } = fakeDeps();
+    await registerExhibitor(
+      { eventId: EVENT_ID, name: 'テスト出店者', email: EMAIL },
+      deps,
+    );
+    const html = sent[0].html;
+    const idIndex = html.indexOf('ログインIDは ご登録のメールアドレスです');
+    const codeIndex = html.indexOf('パスワード:');
+    const urlIndex = html.indexOf('ログインURL:');
+    expect(idIndex).toBeGreaterThanOrEqual(0);
+    expect(codeIndex).toBeGreaterThan(idIndex);
+    expect(urlIndex).toBeGreaterThan(codeIndex);
+  });
+
+  it('メールビルダーは eventId からログインURLを組み立てる', () => {
+    const registered = buildExhibitorPasswordEmail({
+      exhibitorName: 'テスト出店者',
+      eventId: EVENT_ID,
+      code: 'ABCDEFGHJK',
+    });
+    expect(registered.html).toContain(`${APP_ORIGIN}/e/${EVENT_ID}/redeem`);
+    expect(registered.html).toContain('ログインIDは ご登録のメールアドレスです');
+    const reissued = buildExhibitorPasswordReissueEmail({
+      exhibitorName: 'テスト出店者',
+      eventId: EVENT_ID,
+      code: 'ABCDEFGHJK',
+    });
+    expect(reissued.html).toContain(`${APP_ORIGIN}/e/${EVENT_ID}/redeem`);
+    expect(reissued.html).toContain('ログインIDは ご登録のメールアドレスです');
   });
 });
 
