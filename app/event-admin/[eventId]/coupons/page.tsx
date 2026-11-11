@@ -3,11 +3,11 @@
 // app/event-admin/[eventId]/coupons/page.tsx
 // Push-taro EVENT 主催者向けのクーポン管理画面（管理画面③）。
 // 出店者（会社）の登録と、クーポンの登録・一覧を行う。クーポンはイベント全体で上限あり。
-// 案内PDFの管理もこの画面で行う。
+// 案内PDFの管理は設定画面（④）に移した（2026-11-11）。
 // 画面の固定文は4言語辞書（lib/ui-text.ts の ADMIN_TEXT）。
 // 見た目は承認済みモック準拠。ログイン後は共通シェル（components/AdminShell）
 // を使い、PC は左サイドバー固定の2カラム、スマホはアコーディオンになる。
-// フィードバック文は、出店者／クーポン／PDFそれぞれのフォームの直下に出す
+// フィードバック文は、出店者／クーポンそれぞれのフォームの直下に出す
 // （以前は画面最下部にしか出ず、実利用で「何も起きない」ように見えた）。
 // 登録成功時は追加された行までスクロールして一時的にハイライトし、
 // 送信中はボタンの文言も「登録中…」に変えて手応えを出す。
@@ -19,7 +19,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
-import { auth, storage } from '@/lib/firebase-client';
+import { auth } from '@/lib/firebase-client';
 import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
 import {
   ADMIN_CARD_BORDER,
@@ -36,8 +36,6 @@ import { adminText, uiText } from '@/lib/ui-text';
 import { AdminShell } from '@/components/AdminShell';
 import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from '../AdminNav';
-import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
-import { useDropzone } from 'react-dropzone';
 
 interface Exhibitor {
   id: string;
@@ -54,12 +52,6 @@ interface Coupon {
   description: string;
   keywords: string[];
   active: boolean;
-}
-
-interface InfoPdf {
-  id: string;
-  title: string;
-  url: string;
 }
 
 const VIOLET = '#6D28D9';
@@ -118,17 +110,6 @@ const primaryButtonStyle: React.CSSProperties = {
   boxShadow: '0 4px 12px rgba(109, 40, 217, 0.25)',
 };
 
-const dangerButtonStyle: React.CSSProperties = {
-  padding: '7px 16px',
-  fontSize: 13,
-  fontWeight: 600,
-  borderRadius: 12,
-  border: '1px solid #fca5a5',
-  backgroundColor: '#ffffff',
-  color: '#b91c1c',
-  cursor: 'pointer',
-};
-
 const sectionTitleStyle: React.CSSProperties = {
   fontSize: 18,
   fontWeight: 800,
@@ -160,9 +141,6 @@ export default function EventCouponAdminPage() {
   const [exhibitors, setExhibitors] = useState<Exhibitor[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [couponCap, setCouponCap] = useState(100);
-  const [pdfs, setPdfs] = useState<InfoPdf[]>([]);
-  const [pdfTitle, setPdfTitle] = useState('');
-  const [pdfUploading, setPdfUploading] = useState(false);
   const [exhibitorName, setExhibitorName] = useState('');
   const [exhibitorEmail, setExhibitorEmail] = useState('');
   const [couponForm, setCouponForm] = useState({
@@ -175,7 +153,6 @@ export default function EventCouponAdminPage() {
   const [loadMessage, setLoadMessage] = useState('');
   const [exhibitorMessage, setExhibitorMessage] = useState('');
   const [couponMessage, setCouponMessage] = useState('');
-  const [pdfMessage, setPdfMessage] = useState('');
   const [busy, setBusy] = useState(false);
   // 送信中フォーム（ボタンの文言を「登録中…」に切り替えるため）。
   const [pendingForm, setPendingForm] = useState<'exhibitor' | 'coupon' | null>(null);
@@ -222,15 +199,13 @@ export default function EventCouponAdminPage() {
   const loadAll = useCallback(async () => {
     if (!user) return;
     try {
-      const [exData, cpData, evData, pdfData] = await Promise.all([
+      const [exData, cpData, evData] = await Promise.all([
         callApi(`/api/events/${eventId}/exhibitors`),
         callApi(`/api/events/${eventId}/coupons`),
         callApi(`/api/events/${eventId}`),
-        callApi(`/api/events/${eventId}/info-pdfs`),
       ]);
       setExhibitors(exData.exhibitors ?? []);
       setCoupons(cpData.coupons ?? []);
-      setPdfs(pdfData.pdfs ?? []);
       if (typeof evData.event?.couponCap === 'number') setCouponCap(evData.event.couponCap);
       setLoadMessage('');
     } catch (e) {
@@ -336,59 +311,6 @@ export default function EventCouponAdminPage() {
     } finally {
       setBusy(false);
       setPendingForm(null);
-    }
-  };
-
-  const handlePdfDrop = useCallback(
-    async (acceptedFiles: File[]) => {
-      const file = acceptedFiles[0];
-      if (!file || !user) return;
-      setPdfUploading(true);
-      setPdfMessage('');
-      try {
-        const storagePath = `events/${eventId}/info-pdfs/${crypto.randomUUID()}.pdf`;
-        const ref = storageRef(storage, storagePath);
-        await uploadBytes(ref, file, { contentType: 'application/pdf' });
-        const url = await getDownloadURL(ref);
-        await callApi(`/api/events/${eventId}/info-pdfs`, {
-          method: 'POST',
-          body: JSON.stringify({
-            title: pdfTitle.trim() || file.name.replace(/\.pdf$/i, ''),
-            url,
-            storagePath,
-          }),
-        });
-        setPdfTitle('');
-        setPdfMessage(adminText(locale, 'pdfAdded'));
-        await loadAll();
-      } catch (e) {
-        setPdfMessage(e instanceof Error ? e.message : adminText(locale, 'pdfAddFailed'));
-      } finally {
-        setPdfUploading(false);
-      }
-    },
-    [user, eventId, pdfTitle, callApi, loadAll, locale],
-  );
-
-  const pdfDropzone = useDropzone({
-    onDrop: handlePdfDrop,
-    accept: { 'application/pdf': ['.pdf'] },
-    maxFiles: 1,
-    disabled: pdfUploading || pdfs.length >= 5,
-  });
-
-  const handleDeletePdf = async (pdfId: string) => {
-    if (!window.confirm(adminText(locale, 'confirmDeletePdf'))) return;
-    setBusy(true);
-    setPdfMessage('');
-    try {
-      await callApi(`/api/events/${eventId}/info-pdfs/${pdfId}`, { method: 'DELETE' });
-      setPdfMessage(adminText(locale, 'pdfDeleted'));
-      await loadAll();
-    } catch (e) {
-      setPdfMessage(e instanceof Error ? e.message : adminText(locale, 'pdfDeleteFailed'));
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -661,57 +583,6 @@ export default function EventCouponAdminPage() {
             </span>
           </button>
           {couponMessage && <p style={adminFeedbackStyle}>{couponMessage}</p>}
-        </div>
-      </section>
-
-      <section style={{ marginTop: 30 }}>
-        <h2 style={sectionTitleStyle}>
-          {adminText(locale, 'pdfsTitle', { count: String(pdfs.length) })}
-        </h2>
-        <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
-          {adminText(locale, 'pdfsNote')}
-        </p>
-        {pdfs.map((pdf) => (
-          <div
-            key={pdf.id}
-            style={{ ...cardStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', marginTop: 12 }}
-          >
-            <a href={pdf.url} target="_blank" rel="noreferrer" style={{ fontSize: 14, fontWeight: 600, color: VIOLET }}>
-              {pdf.title}
-            </a>
-            <button onClick={() => void handleDeletePdf(pdf.id)} disabled={busy} style={dangerButtonStyle}>
-              {adminText(locale, 'deleteButton')}
-            </button>
-          </div>
-        ))}
-        {pdfMessage && <p style={adminFeedbackStyle}>{pdfMessage}</p>}
-        <div style={{ ...cardStyle, marginTop: 12, padding: 24 }}>
-          <label style={{ ...labelStyle, marginBottom: 0 }}>
-            {adminText(locale, 'pdfTitleLabel')}
-            <input style={inputStyle} value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder={adminText(locale, 'pdfTitlePlaceholder')} />
-          </label>
-          <div
-            {...pdfDropzone.getRootProps()}
-            style={{
-              border: `2px dashed ${pdfDropzone.isDragActive ? '#6D28D9' : '#c4b5fd'}`,
-              backgroundColor: pdfDropzone.isDragActive ? '#f5f3ff' : '#ffffff',
-              borderRadius: 16,
-              padding: 24,
-              marginTop: 12,
-              textAlign: 'center',
-              fontSize: 14,
-              color: '#475569',
-              cursor: pdfs.length >= 5 ? 'not-allowed' : 'pointer',
-              opacity: pdfs.length >= 5 ? 0.5 : 1,
-            }}
-          >
-            <input {...pdfDropzone.getInputProps()} />
-            {pdfUploading
-              ? adminText(locale, 'pdfUploading')
-              : pdfs.length >= 5
-                ? adminText(locale, 'pdfCapReached')
-                : adminText(locale, 'pdfDropHint')}
-          </div>
         </div>
       </section>
     </AdminShell>
