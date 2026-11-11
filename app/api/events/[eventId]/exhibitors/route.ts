@@ -60,7 +60,12 @@ export async function POST(
       lang: guard.event.defaultLocale,
     };
     // コード自体はレスポンスに含めない（メールでのみ出店者に渡る）。
-    return NextResponse.json({ exhibitor }, { status: 201 });
+    // メール送信の成否は mailSent で返す（失敗しても登録は成立しているので、
+    // 画面側は成功表示とは別に警告を出すために使う）。
+    return NextResponse.json(
+      { exhibitor, mailSent: result.mailSent },
+      { status: 201 },
+    );
   } catch (error) {
     if (error instanceof ExhibitorAccessError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

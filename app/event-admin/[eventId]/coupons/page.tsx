@@ -152,6 +152,8 @@ export default function EventCouponAdminPage() {
   const [message, setMessage] = useState('');
   const [loadMessage, setLoadMessage] = useState('');
   const [exhibitorMessage, setExhibitorMessage] = useState('');
+  // パスワードメールの送信失敗だけを伝える警告（成功文とは別に出す）。
+  const [exhibitorMailWarning, setExhibitorMailWarning] = useState('');
   const [couponMessage, setCouponMessage] = useState('');
   const [busy, setBusy] = useState(false);
   // 送信中フォーム（ボタンの文言を「登録中…」に切り替えるため）。
@@ -233,6 +235,7 @@ export default function EventCouponAdminPage() {
     setBusy(true);
     setPendingForm('exhibitor');
     setExhibitorMessage('');
+    setExhibitorMailWarning('');
     try {
       const result = await callApi(`/api/events/${eventId}/exhibitors`, {
         method: 'POST',
@@ -240,7 +243,13 @@ export default function EventCouponAdminPage() {
       });
       setExhibitorName('');
       setExhibitorEmail('');
-      setExhibitorMessage(adminText(locale, 'exhibitorAdded'));
+      if (result?.mailSent === false) {
+        // 登録は成立しているがパスワードメールが送れていない。「送信しました」
+        // という成功文は出さず、警告だけを出す（警告文自体が登録の成立も伝える）。
+        setExhibitorMailWarning(adminText(locale, 'exhibitorAddedMailFailed'));
+      } else {
+        setExhibitorMessage(adminText(locale, 'exhibitorAdded'));
+      }
       await loadAll();
       const newId = typeof result?.exhibitor?.id === 'string' ? result.exhibitor.id : null;
       if (newId) setHighlight({ kind: 'exhibitor', id: newId });
@@ -267,12 +276,19 @@ export default function EventCouponAdminPage() {
     setBusy(true);
     setReissuingId(exhibitor.id);
     setExhibitorMessage('');
+    setExhibitorMailWarning('');
     try {
-      await callApi(`/api/events/${eventId}/exhibitors/${exhibitor.id}/password`, {
+      const result = await callApi(`/api/events/${eventId}/exhibitors/${exhibitor.id}/password`, {
         method: 'POST',
         body: JSON.stringify(email !== exhibitor.email ? { email } : {}),
       });
-      setExhibitorMessage(adminText(locale, 'exhibitorReissued'));
+      if (result?.mailSent === false) {
+        // パスワード自体は差し替わっているが、メールが届いていない状態。
+        // 送信済みの成功文は出さず、失敗が分かる警告を出す。
+        setExhibitorMailWarning(adminText(locale, 'exhibitorReissueMailFailed'));
+      } else {
+        setExhibitorMessage(adminText(locale, 'exhibitorReissued'));
+      }
       await loadAll();
     } catch (e) {
       setExhibitorMessage(
@@ -456,6 +472,7 @@ export default function EventCouponAdminPage() {
             </span>
           </button>
           {exhibitorMessage && <p style={adminFeedbackStyle}>{exhibitorMessage}</p>}
+          {exhibitorMailWarning && <p style={adminErrorTextStyle}>{exhibitorMailWarning}</p>}
         </div>
       </section>
 

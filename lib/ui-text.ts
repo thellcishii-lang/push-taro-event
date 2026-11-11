@@ -1359,6 +1359,18 @@ export const ADMIN_TEXT = {
     zh: '密码重新发送失败',
     ko: '비밀번호 재발급에 실패했습니다',
   },
+  exhibitorAddedMailFailed: {
+    ja: '登録しましたが、パスワードのメール送信に失敗しました。出店者一覧の「パスワード再発行」から送り直してください',
+    en: 'The exhibitor was added, but the password email could not be sent. Please resend it from “Reissue password” in the exhibitor list.',
+    zh: '参展商已登记，但密码邮件发送失败。请从参展商列表中的“重新发送密码”重新发送。',
+    ko: '출점자를 등록했지만 비밀번호 이메일 전송에 실패했습니다. 출점자 목록의 “비밀번호 재발급”에서 다시 보내 주세요.',
+  },
+  exhibitorReissueMailFailed: {
+    ja: 'パスワードを再発行しましたが、メール送信に失敗しました。もう一度「パスワード再発行」をお試しください',
+    en: 'A new password was issued, but the email could not be sent. Please try “Reissue password” again.',
+    zh: '已重新发送新密码，但邮件发送失败。请再次尝试“重新发送密码”。',
+    ko: '새 비밀번호를 발급했지만 이메일 전송에 실패했습니다. “비밀번호 재발급”을 다시 시도해 주세요.',
+  },
   exhibitorEmailPrompt: {
     ja: 'ログイン用メールアドレスを入力してください',
     en: 'Please enter the email address for login',
