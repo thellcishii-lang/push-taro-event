@@ -25,6 +25,8 @@ export async function GET(
       defaultLocale: event.defaultLocale,
       // 入場用QRの取り込みが有効かどうか（来場者画面の表示制御に使う）
       admissionQrEnabled: event.admissionQrEnabled,
+      // 主催者リンク（最大3件、タイトル付きで来場者画面に表示する）
+      links: event.links,
     },
   });
 }

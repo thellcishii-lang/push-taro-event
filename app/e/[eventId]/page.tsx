@@ -34,6 +34,11 @@ import { buildCouponGroups } from '@/lib/coupon-groups';
 import { QRCodeSVG } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 
+interface PublicEventLink {
+  title: string;
+  url: string;
+}
+
 interface PublicEvent {
   name: string;
   startDate: string;
@@ -43,6 +48,8 @@ interface PublicEvent {
   defaultLocale: string;
   /** 入場用QRの取り込みが有効か（主催者設定。オフなら画面に何も出さない） */
   admissionQrEnabled: boolean;
+  /** 主催者リンク（最大3件）。未登録なら空で、画面に何も出さない */
+  links?: PublicEventLink[];
 }
 
 interface AdmissionQrState {
@@ -740,6 +747,32 @@ export default function EventVisitorPage() {
               }}
             >
               📄 {pdf.title}
+            </a>
+          ))}
+        </section>
+      )}
+
+      {event.links && event.links.length > 0 && (
+        <section style={{ marginTop: 20 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800 }}>{uiText(locale, 'linksTitle')}</h2>
+          {event.links.map((link, index) => (
+            <a
+              key={`${link.url}-${index}`}
+              href={link.url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                ...cardStyle,
+                display: 'block',
+                padding: 14,
+                marginTop: 8,
+                fontWeight: 700,
+                fontSize: 15,
+                color: VIOLET,
+                textDecoration: 'none',
+              }}
+            >
+              🔗 {link.title}
             </a>
           ))}
         </section>
