@@ -15,6 +15,8 @@ import {
   EventConfig,
   MAX_COUPONS_PER_EVENT,
   isValidResetTime,
+  normalizeEventLinks,
+  parseEventLinks,
   receivesCapsPropagation,
 } from './event';
 
@@ -38,6 +40,8 @@ function toEventConfig(id: string, data: FirebaseFirestore.DocumentData): EventC
     defaultLocale: normalizeLocale(data.defaultLocale),
     // 入場用QRは既定オフ。導入前に作られたイベントには項目自体が無い
     admissionQrEnabled: data.admissionQrEnabled === true,
+    // 主催者リンクは導入前のイベントには項目自体が無い
+    links: parseEventLinks(data.links),
     couponCap: data.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays: data.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
     status: data.status,
@@ -71,6 +75,7 @@ export async function createEvent(input: CreateEventInput): Promise<EventConfig>
     subscriberCap: input.subscriberCap ?? DEFAULT_SUBSCRIBER_CAP,
     defaultLocale: input.defaultLocale ?? DEFAULT_LOCALE,
     admissionQrEnabled: input.admissionQrEnabled ?? false,
+    links: normalizeEventLinks(input.links),
     couponCap: input.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays:
       input.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
@@ -198,6 +203,7 @@ export type UpdateEventInput = Partial<
     | 'subscriberCap'
     | 'defaultLocale'
     | 'admissionQrEnabled'
+    | 'links'
     | 'couponCap'
     | 'backupRetentionDays'
     | 'status'
@@ -222,6 +228,9 @@ export async function updateEvent(
   ) {
     throw new Error('入場用QR設定の形式が不正です');
   }
+  // 主催者リンクは検証してから正規化した形で保存する
+  const links =
+    patch.links !== undefined ? normalizeEventLinks(patch.links) : undefined;
   if (
     patch.startDate !== undefined &&
     patch.endDate !== undefined &&
@@ -232,5 +241,9 @@ export async function updateEvent(
   await db
     .collection(EVENTS_COLLECTION)
     .doc(eventId)
-    .update({ ...patch, updatedAt: FieldValue.serverTimestamp() });
+    .update({
+      ...patch,
+      ...(links !== undefined ? { links } : {}),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 }

@@ -18,6 +18,17 @@ export type EventResetMode =
 
 export type EventStatus = 'draft' | 'live' | 'ended';
 
+/**
+ * 主催者リンク（最大3件）。来場者画面にタイトル付きカードで表示される。
+ * イベントドキュメントの links フィールドに配列で持つ。
+ * タイトルは主催者が書いた原文のまま表示する（案内PDFのタイトルと同じ扱い、
+ * 自動翻訳しない）。
+ */
+export interface EventLink {
+  title: string;
+  url: string;
+}
+
 export interface EventConfig {
   id: string;
   /** イベント名（例: 展示会名） */
@@ -42,6 +53,13 @@ export interface EventConfig {
    * 入場時に表示できる。オフの間は来場者画面に何も出ず、保存もできない。
    */
   admissionQrEnabled: boolean;
+  /**
+   * 主催者リンク（最大 MAX_EVENT_LINKS 件）。設定画面で登録し、来場者画面に
+   * タイトル付きで表示する（案内PDFと同じく登録前でも見える位置）。
+   * 未登録なら空配列で、来場者画面には何も出ない。
+   * 導入前に作られたイベントには項目自体が無いため、読み取り時は空配列に倒す。
+   */
+  links: EventLink[];
   /**
    * クーポン上限（イベント全体の件数）。購読者上限と同じく契約枠の軸なので、
    * 変更は運営側のみ。既定は MAX_COUPONS_PER_EVENT。
@@ -85,6 +103,7 @@ export const MAX_COUPONS_PER_EVENT = 100;
  */
 export const MAX_CONCURRENT_EVENTS = 3;
 export const MAX_INFO_PDFS = 5;
+export const MAX_EVENT_LINKS = 3;
 export const DEFAULT_RESET_TIME = '00:00';
 export const DEFAULT_BACKUP_RETENTION_DAYS = 30;
 export const DEFAULT_RESET_MODE: EventResetMode = 'full-daily';
@@ -100,6 +119,7 @@ export interface CreateEventInput {
   subscriberCap?: number;
   defaultLocale?: Locale;
   admissionQrEnabled?: boolean;
+  links?: EventLink[];
   couponCap?: number;
   backupRetentionDays?: number;
 }
@@ -124,6 +144,70 @@ export function jstTimeString(date: Date): string {
 /** 'HH:MM' 形式かどうかの簡易バリデーション（00:00〜23:59）。 */
 export function isValidResetTime(value: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+/** https の URL かどうか。 */
+export function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function readLinkFields(item: unknown): { title: string; url: string } | null {
+  if (!item || typeof item !== 'object') return null;
+  const raw = item as { title?: unknown; url?: unknown };
+  return {
+    title: typeof raw.title === 'string' ? raw.title.trim() : '',
+    url: typeof raw.url === 'string' ? raw.url.trim() : '',
+  };
+}
+
+/**
+ * 主催者リンクの入力を検証して正規化する（書き込み用。不正なら throw）。
+ * - タイトルと URL はセット: 片方だけの枠はエラー
+ * - 両方空の枠は未指定として読み飛ばす（設定画面の空枠がこれに当たる）
+ * - URL は https のみ許可
+ * - 実質の件数は最大 MAX_EVENT_LINKS 件
+ */
+export function normalizeEventLinks(input: unknown): EventLink[] {
+  if (input === undefined || input === null) return [];
+  if (!Array.isArray(input)) throw new Error('リンクの形式が不正です');
+  const links: EventLink[] = [];
+  for (const item of input) {
+    const fields = readLinkFields(item);
+    if (!fields) throw new Error('リンクの形式が不正です');
+    if (!fields.title && !fields.url) continue;
+    if (!fields.title || !fields.url) {
+      throw new Error('リンクのタイトルとURLは両方入力してください');
+    }
+    if (!isHttpsUrl(fields.url)) {
+      throw new Error('リンクのURLは https:// で始まる必要があります');
+    }
+    links.push(fields);
+  }
+  if (links.length > MAX_EVENT_LINKS) {
+    throw new Error(`リンクは最大${MAX_EVENT_LINKS}件までです`);
+  }
+  return links;
+}
+
+/**
+ * 保存済みの主催者リンクを防御的に読む（読み取り用。throw しない）。
+ * 項目が無い旧イベントは空配列。不正な要素は落とし、上限で切り詰める。
+ */
+export function parseEventLinks(value: unknown): EventLink[] {
+  if (!Array.isArray(value)) return [];
+  const links: EventLink[] = [];
+  for (const item of value) {
+    const fields = readLinkFields(item);
+    if (fields && fields.title && fields.url && isHttpsUrl(fields.url)) {
+      links.push(fields);
+      if (links.length >= MAX_EVENT_LINKS) break;
+    }
+  }
+  return links;
 }
 
 /**
