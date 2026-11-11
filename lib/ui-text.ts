@@ -831,6 +831,12 @@ export const ADMIN_TEXT = {
     zh: '③ 优惠券管理',
     ko: '③ 쿠폰 관리',
   },
+  navConfig: {
+    ja: '④ 設定',
+    en: '④ Settings',
+    zh: '④ 设置',
+    ko: '④ 설정',
+  },
   navSettings: {
     ja: 'イベント設定',
     en: 'Event settings',
@@ -1304,6 +1310,12 @@ export const ADMIN_TEXT = {
     en: 'Coupon management',
     zh: '优惠券管理',
     ko: '쿠폰 관리',
+  },
+  settingsPageTitle: {
+    ja: '設定',
+    en: 'Settings',
+    zh: '设置',
+    ko: '설정',
   },
   exhibitorsTitle: {
     ja: '出店者（{count}社）',
