@@ -114,6 +114,8 @@ export interface CreateEventInput {
   ownerUid: string;
   startDate: string;
   endDate: string;
+  /** 作成時の状態。未指定は下書き。'ended' は作成時には指定できない。 */
+  status?: 'draft' | 'live';
   resetMode?: EventResetMode;
   resetTime?: string;
   subscriberCap?: number;
@@ -251,6 +253,27 @@ export function canCreateAnotherEvent(
   events: Pick<EventConfig, 'status'>[],
 ): boolean {
   return countConcurrentEvents(events) < MAX_CONCURRENT_EVENTS;
+}
+
+/**
+ * 作成時に指定できる状態かどうかを検証し、正規化する（純粋関数・テスト対象）。
+ * 未指定（undefined / null）は下書き。'ended' は作成時には選べない
+ * （終了はスケジューラの終了処理でのみ遷移する）。
+ * それ以外は例外を投げる（呼び出し側で 400 にする）。
+ */
+export function resolveCreateStatus(value: unknown): 'draft' | 'live' {
+  if (value === undefined || value === null || value === 'draft') return 'draft';
+  if (value === 'live') return 'live';
+  throw new Error('状態の指定が不正です（下書きか開催中を指定してください）');
+}
+
+/**
+ * 主催者がイベントを削除できるかどうか（純粋関数・テスト対象）。
+ * 開催中は削除できない（先に終了させる運用）。削除できるのは
+ * 下書きと、終了処理まで済んだ 'ended' のみ。
+ */
+export function canDeleteEvent(event: Pick<EventConfig, 'status'>): boolean {
+  return event.status === 'draft' || event.status === 'ended';
 }
 
 /**

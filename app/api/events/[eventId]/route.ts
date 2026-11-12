@@ -1,8 +1,18 @@
 // app/api/events/[eventId]/route.ts
-// 主催者向けイベント管理 API: 取得と更新（自分のイベントだけ）。
+// 主催者向けイベント管理 API: 取得・更新・削除（自分のイベントだけ）。
 import { NextResponse } from 'next/server';
-import { getUidFromRequest, passwordChangeBlock } from '@/lib/event-auth';
-import { getEvent, updateEvent, UpdateEventInput } from '@/lib/event-store';
+import {
+  getUidFromRequest,
+  passwordChangeBlock,
+  requireEventOwner,
+} from '@/lib/event-auth';
+import {
+  deleteEventCompletely,
+  getEvent,
+  updateEvent,
+  UpdateEventInput,
+} from '@/lib/event-store';
+import { canDeleteEvent } from '@/lib/event';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,6 +102,43 @@ export async function PATCH(
     return NextResponse.json(
       { error: error instanceof Error ? error.message : '更新に失敗しました' },
       { status: 400 },
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ eventId: string }> },
+) {
+  const { eventId } = await params;
+  // 主催者本人の確認（認証・所有者・初回パスワード変更ゲートを含む）。
+  const guard = await requireEventOwner(request, eventId);
+  if ('error' in guard) return guard.error;
+
+  // 開催中は削除できない。先に終了させる運用
+  // （終了はスケジューラの終了処理で遷移する）。
+  if (!canDeleteEvent(guard.event)) {
+    return NextResponse.json(
+      {
+        error:
+          '開催中のイベントは削除できません。削除できるのは下書きと終了したイベントです',
+      },
+      { status: 409 },
+    );
+  }
+
+  try {
+    // イベント本体・全サブコレクション・Storage の案内 PDF を消す。
+    // 最終レポート（event_reports / event_report_backups）は残る。
+    await deleteEventCompletely(eventId);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error ? error.message : '削除に失敗しました',
+      },
+      { status: 500 },
     );
   }
 }

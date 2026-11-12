@@ -3,12 +3,14 @@ import {
   EventConfig,
   MAX_CONCURRENT_EVENTS,
   canCreateAnotherEvent,
+  canDeleteEvent,
   countConcurrentEvents,
   countsTowardConcurrentCap,
   isFinalizationDue,
   isResetDue,
   isValidResetTime,
   receivesCapsPropagation,
+  resolveCreateStatus,
   jstDateString,
   jstTimeString,
 } from './event';
@@ -154,5 +156,37 @@ describe('枠伝播の対象（receivesCapsPropagation）', () => {
   it('終了処理が完了したイベントはステータスによらず対象外', () => {
     expect(receivesCapsPropagation(ev('live', '2026-11-09T00:00:00.000Z'))).toBe(false);
     expect(receivesCapsPropagation(ev('draft', '2026-11-09T00:00:00.000Z'))).toBe(false);
+  });
+});
+
+describe('作成時の状態指定（resolveCreateStatus）', () => {
+  it('未指定は下書き', () => {
+    expect(resolveCreateStatus(undefined)).toBe('draft');
+    expect(resolveCreateStatus(null)).toBe('draft');
+  });
+
+  it('下書き・開催中はそのまま通す', () => {
+    expect(resolveCreateStatus('draft')).toBe('draft');
+    expect(resolveCreateStatus('live')).toBe('live');
+  });
+
+  it('終了や不正な値は例外（作成時には選べない）', () => {
+    expect(() => resolveCreateStatus('ended')).toThrow();
+    expect(() => resolveCreateStatus('published')).toThrow();
+    expect(() => resolveCreateStatus(1)).toThrow();
+    expect(() => resolveCreateStatus({})).toThrow();
+  });
+});
+
+describe('削除できるイベント（canDeleteEvent）', () => {
+  const ev = (status: EventConfig['status']) => ({ status });
+
+  it('下書きと終了は削除できる', () => {
+    expect(canDeleteEvent(ev('draft'))).toBe(true);
+    expect(canDeleteEvent(ev('ended'))).toBe(true);
+  });
+
+  it('開催中は削除できない（先に終了させる運用）', () => {
+    expect(canDeleteEvent(ev('live'))).toBe(false);
   });
 });
