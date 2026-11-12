@@ -11,12 +11,39 @@ import { MAX_INFO_PDFS } from './event';
 
 export const EVENT_INFO_PDFS_COLLECTION = 'infoPdfs';
 
+/** 案内PDFの置き場（Storage 上のディレクトリ名）。 */
+export const INFO_PDFS_DIR = 'info-pdfs';
+
 export interface EventInfoPdf {
   id: string;
   title: string;
   url: string;
   storagePath: string;
   createdAt: string;
+}
+
+/**
+ * 案内PDFの Storage パスが「所有者本人の現行形式パス」か（純粋関数）。
+ * 現行形式は organizers/{ownerUid}/events/{eventId}/info-pdfs/{fileName}.pdf で、
+ * Storage ルールがパス内の uid 一致だけで書き込みを判定することと対になる。
+ * 移行前の events/{eventId}/info-pdfs/… は登録では受け付けない
+ * （保存済みの旧形式は読み取り・削除にはそのまま使える）。
+ */
+export function isInfoPdfStoragePath(
+  ownerUid: string,
+  eventId: string,
+  storagePath: unknown,
+): boolean {
+  if (typeof storagePath !== 'string') return false;
+  const prefix = `organizers/${ownerUid}/events/${eventId}/${INFO_PDFS_DIR}/`;
+  if (!storagePath.startsWith(prefix)) return false;
+  const fileName = storagePath.slice(prefix.length);
+  return (
+    !!fileName &&
+    !fileName.includes('/') &&
+    !fileName.includes('..') &&
+    fileName.toLowerCase().endsWith('.pdf')
+  );
 }
 
 /** PDF上限に達しているか。 */
@@ -51,12 +78,12 @@ export async function listInfoPdfs(eventId: string): Promise<EventInfoPdf[]> {
 
 export async function addInfoPdf(
   eventId: string,
-  input: { title: string; url: string; storagePath: string },
+  input: { title: string; url: string; storagePath: string; ownerUid: string },
 ): Promise<EventInfoPdf> {
   const title = input.title.trim();
   if (!title) throw new Error('PDFのタイトルが必要です');
   if (!input.url) throw new Error('PDFのURLが必要です');
-  if (!input.storagePath.startsWith(`events/${eventId}/`)) {
+  if (!isInfoPdfStoragePath(input.ownerUid, eventId, input.storagePath)) {
     throw new Error('保存先パスが不正です');
   }
   const countSnap = await infoPdfsRef(eventId).count().get();

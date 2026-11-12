@@ -37,7 +37,7 @@ export async function POST(
   const storagePath = typeof body.storagePath === 'string' ? body.storagePath : '';
 
   try {
-    const pdf = await addInfoPdf(eventId, { title, url, storagePath });
+    const pdf = await addInfoPdf(eventId, { title, url, storagePath, ownerUid: guard.uid });
     return NextResponse.json({ pdf }, { status: 201 });
   } catch (error) {
     return NextResponse.json(

@@ -262,7 +262,7 @@ export default function EventSettingsAdminPage() {
       setPdfUploading(true);
       setPdfMessage('');
       try {
-        const storagePath = `events/${eventId}/info-pdfs/${crypto.randomUUID()}.pdf`;
+        const storagePath = `organizers/${user.uid}/events/${eventId}/info-pdfs/${crypto.randomUUID()}.pdf`;
         const ref = storageRef(storage, storagePath);
         await uploadBytes(ref, file, { contentType: 'application/pdf' });
         const url = await getDownloadURL(ref);
