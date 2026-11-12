@@ -11,7 +11,7 @@
 // 見た目は承認済みモック準拠。ログイン後は共通シェル（components/AdminShell）
 // を使い、PC は左サイドバー固定の2カラム、スマホはアコーディオンになる。
 // フィードバック文はフォームの直下に出す。
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   User,
@@ -38,8 +38,7 @@ import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from '../AdminNav';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { useDropzone } from 'react-dropzone';
-import { QRCodeCanvas } from 'qrcode.react';
-import { eventVisitorUrl } from '@/lib/app-origin';
+import { VisitorQr } from '@/components/VisitorQr';
 
 interface InfoPdf {
   id: string;
@@ -137,19 +136,6 @@ export default function EventSettingsAdminPage() {
   const [loadMessage, setLoadMessage] = useState('');
   const [pdfMessage, setPdfMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const qrWrapRef = useRef<HTMLDivElement | null>(null);
-  const visitorUrl = eventVisitorUrl(eventId);
-
-  // 表示中の QR キャンバス（1024px で描画）からそのまま PNG を書き出す。
-  // 印刷は主催者側で行う前提なので、印刷画面は作らずダウンロードのみ。
-  const handleDownloadQr = () => {
-    const canvas = qrWrapRef.current?.querySelector('canvas');
-    if (!canvas) return;
-    const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/png');
-    a.download = `visitor-qr-${eventId}.png`;
-    a.click();
-  };
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -367,25 +353,13 @@ export default function EventSettingsAdminPage() {
         <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
           {adminText(locale, 'visitorQrNote')}
         </p>
-        <div style={{ ...cardStyle, marginTop: 12, padding: 24, textAlign: 'center' }}>
-          <div ref={qrWrapRef} style={{ display: 'inline-block', lineHeight: 0 }}>
-            <QRCodeCanvas
-              value={visitorUrl}
-              size={1024}
-              level="M"
-              marginSize={4}
-              style={{ width: 220, height: 220 }}
-            />
-          </div>
-          <p style={{ fontSize: 13, color: '#334155', margin: '14px 0 0', wordBreak: 'break-all' }}>
-            {visitorUrl}
-          </p>
-          <button
-            onClick={handleDownloadQr}
-            style={{ ...primaryButtonStyle, marginTop: 16 }}
-          >
-            {adminText(locale, 'visitorQrDownloadButton')}
-          </button>
+        <div style={{ ...cardStyle, marginTop: 12, padding: 24 }}>
+          <VisitorQr
+            eventId={eventId}
+            locale={locale}
+            showUrl
+            buttonStyle={primaryButtonStyle}
+          />
         </div>
       </section>
 
