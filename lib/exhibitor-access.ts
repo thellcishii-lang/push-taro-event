@@ -31,6 +31,7 @@ type EventExhibitor,
 } from './event-coupon';
 import { resolveLocale, type Locale} from './i18n';
 import { sendEmail} from './mailer';
+import { APP_ORIGIN, resolveAppOrigin } from './app-origin';
 
 function scryptAsync(
   secret: string,
@@ -271,18 +272,10 @@ await exhibitorsRef(eventId).doc(exhibitorId).update({ email});
 
 // ─── アプリの origin と消込ページ URL ───
 
-/**
-* 本番の App Hosting origin（本家側 lib/event-provisioning.ts の定数と同じ値）。
-* 将来の独自ドメイン化に備え、環境変数 NEXT_PUBLIC_APP_ORIGIN があれば
-* そちらを優先する（末尾のスラッシュは取り除く）。
-*/
-export const APP_ORIGIN =
-'https://push-taro-event--push-taro-event.asia-east1.hosted.app';
-
-export function resolveAppOrigin(): string {
-const fromEnv = process.env.NEXT_PUBLIC_APP_ORIGIN?.trim();
-return (fromEnv || APP_ORIGIN).replace(/\/+$/, '');
-}
+// origin の実体は共有 lib（lib/app-origin）に切り出した。主催者コンソール
+// （クライアント側）でも来場者ページ URL を組み立てるため、サーバー専用
+// コードを含まない場所に置く。既存の import 互換のため、ここからも公開する。
+export { APP_ORIGIN, resolveAppOrigin };
 
 /** 出店者の消込（ログイン）ページ URL。メール本文に載せて出店者に渡す。 */
 export function exhibitorRedeemUrl(eventId: string): string {

@@ -2,15 +2,16 @@
 
 // app/event-admin/[eventId]/settings/page.tsx
 // Push-taro EVENT 主催者向けの設定画面。
-// 案内PDFの管理（アップロード／一覧／削除、最大5件）と、
-// 主催者リンクの管理（タイトル＋URL、最大3件）を行う。
+// 来場者登録用QRコードの表示・ダウンロード、案内PDFの管理
+// （アップロード／一覧／削除、最大5件）と、主催者リンクの管理
+// （タイトル＋URL、最大3件）を行う。
 // 以前はクーポン管理画面の中にあったが、設定系の項目の受け皿として
 // 独立した画面に移した（2026-11-11）。今後設定項目が増えたらここに置く。
 // 画面の固定文は4言語辞書（lib/ui-text.ts の ADMIN_TEXT）。
 // 見た目は承認済みモック準拠。ログイン後は共通シェル（components/AdminShell）
 // を使い、PC は左サイドバー固定の2カラム、スマホはアコーディオンになる。
 // フィードバック文はフォームの直下に出す。
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   User,
@@ -37,6 +38,8 @@ import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from '../AdminNav';
 import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { useDropzone } from 'react-dropzone';
+import { QRCodeCanvas } from 'qrcode.react';
+import { eventVisitorUrl } from '@/lib/app-origin';
 
 interface InfoPdf {
   id: string;
@@ -134,6 +137,19 @@ export default function EventSettingsAdminPage() {
   const [loadMessage, setLoadMessage] = useState('');
   const [pdfMessage, setPdfMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const qrWrapRef = useRef<HTMLDivElement | null>(null);
+  const visitorUrl = eventVisitorUrl(eventId);
+
+  // 表示中の QR キャンバス（1024px で描画）からそのまま PNG を書き出す。
+  // 印刷は主催者側で行う前提なので、印刷画面は作らずダウンロードのみ。
+  const handleDownloadQr = () => {
+    const canvas = qrWrapRef.current?.querySelector('canvas');
+    if (!canvas) return;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `visitor-qr-${eventId}.png`;
+    a.click();
+  };
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -347,6 +363,33 @@ export default function EventSettingsAdminPage() {
       {loadMessage && <p style={adminErrorTextStyle}>{loadMessage}</p>}
 
       <section style={{ marginTop: 22 }}>
+        <h2 style={sectionTitleStyle}>{adminText(locale, 'visitorQrTitle')}</h2>
+        <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
+          {adminText(locale, 'visitorQrNote')}
+        </p>
+        <div style={{ ...cardStyle, marginTop: 12, padding: 24, textAlign: 'center' }}>
+          <div ref={qrWrapRef} style={{ display: 'inline-block', lineHeight: 0 }}>
+            <QRCodeCanvas
+              value={visitorUrl}
+              size={1024}
+              level="M"
+              marginSize={4}
+              style={{ width: 220, height: 220 }}
+            />
+          </div>
+          <p style={{ fontSize: 13, color: '#334155', margin: '14px 0 0', wordBreak: 'break-all' }}>
+            {visitorUrl}
+          </p>
+          <button
+            onClick={handleDownloadQr}
+            style={{ ...primaryButtonStyle, marginTop: 16 }}
+          >
+            {adminText(locale, 'visitorQrDownloadButton')}
+          </button>
+        </div>
+      </section>
+
+      <section style={{ marginTop: 32 }}>
         <h2 style={sectionTitleStyle}>
           {adminText(locale, 'pdfsTitle', { count: String(pdfs.length) })}
         </h2>
