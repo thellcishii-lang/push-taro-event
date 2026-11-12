@@ -8,7 +8,7 @@
 // 見た目は承認済みモック準拠。ログイン後は共通シェル（components/AdminShell）
 // を使い、PC は左サイドバー固定の2カラム、スマホはアコーディオンになる。
 // フィードバック文は送信フォーム／消込フォーム／履歴それぞれの直下に出す。
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   User,
@@ -168,6 +168,7 @@ export default function EventPushAdminPage() {
   const [password, setPassword] = useState('');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const [attachment, setAttachment] = useState<CampaignAttachment | null>(null);
   const [attachmentName, setAttachmentName] = useState('');
   const [attachmentUploading, setAttachmentUploading] = useState(false);
@@ -259,8 +260,15 @@ export default function EventPushAdminPage() {
       const url = await getDownloadURL(ref);
       setAttachment({ url, type: ext === 'pdf' ? 'pdf' : 'image', storagePath });
       setAttachmentName(file.name);
-    } catch {
-      setAttachmentError(adminText(locale, 'attachmentUploadFailed'));
+    } catch (e) {
+      // 失敗理由（Storage のエラーコード）を文面に添えて、ボタンの近くで
+      // 原因が分かるようにする。アップロード方式自体は変更しない。
+      const code = (e as { code?: unknown } | null)?.code;
+      setAttachmentError(
+        adminText(locale, 'attachmentUploadFailed') +
+          (typeof code === 'string' && code ? ` (${code})` : ''),
+      );
+      console.error('[campaign-attachment] upload failed', e);
     } finally {
       setAttachmentUploading(false);
     }
@@ -395,21 +403,35 @@ export default function EventPushAdminPage() {
               </button>
             </div>
           ) : (
-            <input
-              type="file"
-              accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"
-              disabled={busy || attachmentUploading}
-              onChange={(e) => {
-                void handleAttachmentSelect(e.target.files?.[0]);
-                e.target.value = '';
-              }}
-              style={{ fontSize: 13 }}
-            />
-          )}
-          {attachmentUploading && (
-            <span style={{ fontSize: 12.5, color: '#64748b', marginLeft: 8 }}>
-              {adminText(locale, 'attachmentUploading')}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => attachmentInputRef.current?.click()}
+                disabled={busy || attachmentUploading}
+                style={{ ...primaryButtonStyle, padding: '10px 18px', fontSize: 14 }}
+              >
+                <span style={adminButtonContentStyle}>
+                  {attachmentUploading && <ButtonSpinner />}
+                  {adminText(locale, 'attachmentSelectButton')}
+                </span>
+              </button>
+              {attachmentUploading && (
+                <span style={{ fontSize: 12.5, color: '#64748b' }}>
+                  {adminText(locale, 'attachmentUploading')}
+                </span>
+              )}
+              <input
+                ref={attachmentInputRef}
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"
+                disabled={busy || attachmentUploading}
+                onChange={(e) => {
+                  void handleAttachmentSelect(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+                style={{ display: 'none' }}
+              />
+            </div>
           )}
           {attachmentError && <p style={adminErrorTextStyle}>{attachmentError}</p>}
         </div>
