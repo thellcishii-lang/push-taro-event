@@ -88,6 +88,18 @@ interface InfoPdf {
   url: string;
 }
 
+interface EventNotice {
+  id: string;
+  title: string;
+  body: string;
+  sentAt: string | null;
+  attachment: {
+    url: string;
+    type: 'pdf' | 'image';
+    storagePath: string;
+  } | null;
+}
+
 function normalizePhoneNumber(value: string): string {
   const compact = value
     .replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0))
@@ -205,6 +217,7 @@ export default function EventVisitorPage() {
   const [couponQuery, setCouponQuery] = useState('');
   const [coupons, setCoupons] = useState<PublicCoupon[]>([]);
   const [myClaims, setMyClaims] = useState<MemberClaim[]>([]);
+  const [notices, setNotices] = useState<EventNotice[]>([]);
   const [couponMessage, setCouponMessage] = useState('');
   const [infoPdfs, setInfoPdfs] = useState<InfoPdf[]>([]);
   // QRを開いている取得済みクーポン。undefined = 未操作（先頭の未使用分を開く）
@@ -409,10 +422,25 @@ export default function EventVisitorPage() {
     }
   };
 
+  // お知らせは登録済みの来場者だけが API から取得できる（未登録は 403 で空のまま）
+  const loadNotices = async (currentUser: User, loc: Locale) => {
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch(`/api/events/${eventId}/notices?lang=${loc}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setNotices(data.notices ?? []);
+    } catch {
+      // 同上
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     void loadCoupons(locale);
     void loadMyClaims(user, locale);
+    void loadNotices(user, locale);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, eventId, locale]);
 
@@ -557,7 +585,10 @@ export default function EventVisitorPage() {
   useEffect(() => {
     if (!user || (phase !== 'register' && phase !== 'done')) return;
     const refresh = () => {
-      if (document.visibilityState === 'visible') void loadMyClaims(user, locale);
+      if (document.visibilityState === 'visible') {
+        void loadMyClaims(user, locale);
+        void loadNotices(user, locale);
+      }
     };
     const timer = window.setInterval(refresh, 15000);
     document.addEventListener('visibilitychange', refresh);
@@ -1320,6 +1351,96 @@ export default function EventVisitorPage() {
                 );
               })}
             </>
+          )}
+
+          {notices.length > 0 && (
+            <section style={{ marginTop: 24 }}>
+              <h2
+                style={{
+                  fontSize: 17,
+                  fontWeight: 800,
+                  margin: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <span aria-hidden="true">🔔</span>
+                <span style={{ flex: 1 }}>{uiText(locale, 'noticesTitle')}</span>
+                <span style={{ fontSize: 13, color: '#64748b', fontWeight: 600 }}>
+                  {uiText(locale, 'itemsCount', { count: String(notices.length) })}
+                </span>
+              </h2>
+              {notices.map((notice) => {
+                const sentDate = notice.sentAt ? new Date(notice.sentAt) : null;
+                const sentLabel =
+                  sentDate && !Number.isNaN(sentDate.getTime())
+                    ? sentDate.toLocaleString(locale, {
+                        month: 'numeric',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '';
+                return (
+                  <article
+                    key={notice.id}
+                    style={{ ...cardStyle, padding: 14, marginTop: 10 }}
+                  >
+                    <div style={{ fontWeight: 800, fontSize: 15.5 }}>{notice.title}</div>
+                    {sentLabel && (
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                        {sentLabel}
+                      </div>
+                    )}
+                    <p style={{ fontSize: 13.5, margin: '6px 0 0', whiteSpace: 'pre-wrap' }}>
+                      {notice.body}
+                    </p>
+                    {notice.attachment?.type === 'image' && (
+                      <a
+                        href={notice.attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ display: 'block', marginTop: 10 }}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={notice.attachment.url}
+                          alt={notice.title}
+                          style={{
+                            display: 'block',
+                            width: '100%',
+                            borderRadius: 12,
+                            border: '1px solid #e2e8f0',
+                          }}
+                        />
+                      </a>
+                    )}
+                    {notice.attachment?.type === 'pdf' && (
+                      <a
+                        href={notice.attachment.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'block',
+                          marginTop: 10,
+                          padding: '11px 12px',
+                          borderRadius: 12,
+                          border: '1px solid #ddd6fe',
+                          backgroundColor: '#f5f3ff',
+                          fontWeight: 700,
+                          fontSize: 14,
+                          color: VIOLET,
+                          textDecoration: 'none',
+                        }}
+                      >
+                        📄 {uiText(locale, 'noticePdfLabel')}
+                      </a>
+                    )}
+                  </article>
+                );
+              })}
+            </section>
           )}
 
           <div style={{ position: 'relative', marginTop: 22 }}>
