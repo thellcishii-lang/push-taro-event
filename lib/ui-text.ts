@@ -1209,6 +1209,12 @@ export const ADMIN_TEXT = {
     zh: '移除附件',
     ko: '첨부 제거',
   },
+  attachmentSelectButton: {
+    ja: 'ファイルを選ぶ',
+    en: 'Choose file',
+    zh: '选择文件',
+    ko: '파일 선택',
+  },
   attachmentTypeError: {
     ja: 'PDFまたは画像ファイルを選んでください',
     en: 'Please choose a PDF or image file',
