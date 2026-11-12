@@ -16,7 +16,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase-client';
+import { auth, storage } from '@/lib/firebase-client';
+import { getDownloadURL, ref as storageRef, uploadBytes } from 'firebase/storage';
 import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
 import {
   ADMIN_CARD_BORDER,
@@ -34,6 +35,12 @@ import { AdminShell } from '@/components/AdminShell';
 import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from '../AdminNav';
 
+interface CampaignAttachment {
+  url: string;
+  type: 'pdf' | 'image';
+  storagePath: string;
+}
+
 interface Campaign {
   id: string;
   title: string;
@@ -43,7 +50,19 @@ interface Campaign {
   sentAt: string | null;
   sentCount: number | null;
   error: string | null;
+  attachment: CampaignAttachment | null;
 }
+
+/** 添付できるファイル種別（MIME → 拡張子）。サーバー側の検証と同じ範囲にそろえる。 */
+const ATTACHMENT_MIME_TO_EXT: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 const VIOLET = '#6D28D9';
 
@@ -149,6 +168,10 @@ export default function EventPushAdminPage() {
   const [password, setPassword] = useState('');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
+  const [attachment, setAttachment] = useState<CampaignAttachment | null>(null);
+  const [attachmentName, setAttachmentName] = useState('');
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [claimCode, setClaimCode] = useState('');
   const [message, setMessage] = useState('');
@@ -214,6 +237,35 @@ export default function EventPushAdminPage() {
     }
   };
 
+  // 宣伝ファイルは Storage へ直接アップロードし、生成された URL を
+  // リンク先として配信に添付する（案内PDFと同じ方式）。
+  const handleAttachmentSelect = async (file: File | undefined) => {
+    if (!file) return;
+    const ext = ATTACHMENT_MIME_TO_EXT[file.type];
+    if (!ext) {
+      setAttachmentError(adminText(locale, 'attachmentTypeError'));
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachmentError(adminText(locale, 'attachmentSizeError'));
+      return;
+    }
+    setAttachmentUploading(true);
+    setAttachmentError('');
+    try {
+      const storagePath = `events/${eventId}/campaign-files/${crypto.randomUUID()}.${ext}`;
+      const ref = storageRef(storage, storagePath);
+      await uploadBytes(ref, file, { contentType: file.type });
+      const url = await getDownloadURL(ref);
+      setAttachment({ url, type: ext === 'pdf' ? 'pdf' : 'image', storagePath });
+      setAttachmentName(file.name);
+    } catch {
+      setAttachmentError(adminText(locale, 'attachmentUploadFailed'));
+    } finally {
+      setAttachmentUploading(false);
+    }
+  };
+
   const handleSend = async () => {
     if (!window.confirm(adminText(locale, 'confirmSend'))) return;
     setBusy(true);
@@ -222,11 +274,13 @@ export default function EventPushAdminPage() {
     try {
       const data = await callApi(`/api/events/${eventId}/campaigns`, {
         method: 'POST',
-        body: JSON.stringify({ title, body }),
+        body: JSON.stringify({ title, body, attachment }),
       });
       setPushMessage(adminText(locale, 'sentMessage', { count: String(data.campaign?.sentCount ?? 0) }));
       setTitle('');
       setBody('');
+      setAttachment(null);
+      setAttachmentName('');
       await loadCampaigns();
     } catch (e) {
       setPushMessage(e instanceof Error ? e.message : adminText(locale, 'sendFailed'));
@@ -309,9 +363,59 @@ export default function EventPushAdminPage() {
           {adminText(locale, 'bodyLabel')}
           <textarea style={{ ...inputStyle, minHeight: 72 }} value={body} onChange={(e) => setBody(e.target.value)} />
         </label>
+        <div style={{ marginBottom: 12 }}>
+          <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>
+            {adminText(locale, 'attachmentLabel')}
+          </span>
+          <p style={{ fontSize: 12, color: '#64748b', margin: '4px 0 8px' }}>
+            {adminText(locale, 'attachmentNote')}
+          </p>
+          {attachment ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13 }}>📎 {attachmentName}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setAttachment(null);
+                  setAttachmentName('');
+                }}
+                disabled={busy}
+                style={{
+                  padding: '5px 12px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  borderRadius: 999,
+                  border: '1px solid #D9D4EC',
+                  backgroundColor: '#ffffff',
+                  color: VIOLET,
+                  cursor: 'pointer',
+                }}
+              >
+                {adminText(locale, 'attachmentRemoveButton')}
+              </button>
+            </div>
+          ) : (
+            <input
+              type="file"
+              accept="application/pdf,image/png,image/jpeg,image/webp,image/gif"
+              disabled={busy || attachmentUploading}
+              onChange={(e) => {
+                void handleAttachmentSelect(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+              style={{ fontSize: 13 }}
+            />
+          )}
+          {attachmentUploading && (
+            <span style={{ fontSize: 12.5, color: '#64748b', marginLeft: 8 }}>
+              {adminText(locale, 'attachmentUploading')}
+            </span>
+          )}
+          {attachmentError && <p style={adminErrorTextStyle}>{attachmentError}</p>}
+        </div>
         <button
           onClick={handleSend}
-          disabled={busy || !title.trim() || !body.trim()}
+          disabled={busy || attachmentUploading || !title.trim() || !body.trim()}
           style={{ ...primaryButtonStyle, width: '100%', padding: '14px 22px', fontSize: 16 }}
         >
           <span style={adminButtonContentStyle}>
@@ -368,6 +472,11 @@ export default function EventPushAdminPage() {
                     : adminText(locale, 'historyFailed', { error: campaign.error ?? '' })}
                 </div>
                 <p style={{ fontSize: 13, marginTop: 2 }}>{campaign.body}</p>
+                {campaign.attachment && (
+                  <p style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                    📎 {adminText(locale, 'attachmentBadge')}
+                  </p>
+                )}
               </article>
             ))}
           </div>

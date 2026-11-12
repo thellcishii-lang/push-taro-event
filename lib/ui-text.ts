@@ -247,6 +247,18 @@ export const UI_TEXT = {
     zh: '已领取的优惠券',
     ko: '취득한 쿠폰',
   },
+  noticesTitle: {
+    ja: 'お知らせ',
+    en: 'Notices',
+    zh: '通知',
+    ko: '공지',
+  },
+  noticePdfLabel: {
+    ja: '添付PDFを開く',
+    en: 'Open the attached PDF',
+    zh: '打开附件PDF',
+    ko: '첨부 PDF 열기',
+  },
   redeemedNote: {
     ja: '消込済みです',
     en: 'Already redeemed',
@@ -1172,6 +1184,54 @@ export const ADMIN_TEXT = {
     en: 'Body',
     zh: '正文',
     ko: '본문',
+  },
+  attachmentLabel: {
+    ja: '宣伝ファイル（任意）',
+    en: 'Promotional file (optional)',
+    zh: '宣传文件（可选）',
+    ko: '홍보 파일(선택 사항)',
+  },
+  attachmentNote: {
+    ja: 'PDFまたは画像を1点まで添付できます。来場者の「お知らせ」に表示され、タップで開きます（10MBまで）。',
+    en: 'Attach one PDF or image. It appears in visitor notices and opens on tap (up to 10 MB).',
+    zh: '最多可附加1个PDF或图片。将显示在访客的“通知”中，点击即可打开（最大10MB）。',
+    ko: 'PDF 또는 이미지를 1개까지 첨부할 수 있습니다. 방문자의 공지에 표시되며 탭하면 열립니다(최대 10MB).',
+  },
+  attachmentUploading: {
+    ja: 'アップロード中…',
+    en: 'Uploading…',
+    zh: '上传中…',
+    ko: '업로드 중…',
+  },
+  attachmentRemoveButton: {
+    ja: '添付を外す',
+    en: 'Remove file',
+    zh: '移除附件',
+    ko: '첨부 제거',
+  },
+  attachmentTypeError: {
+    ja: 'PDFまたは画像ファイルを選んでください',
+    en: 'Please choose a PDF or image file',
+    zh: '请选择PDF或图片文件',
+    ko: 'PDF 또는 이미지 파일을 선택해 주세요',
+  },
+  attachmentSizeError: {
+    ja: 'ファイルサイズは10MBまでです',
+    en: 'File size must be 10 MB or less',
+    zh: '文件大小不能超过10MB',
+    ko: '파일 크기는 10MB까지입니다',
+  },
+  attachmentUploadFailed: {
+    ja: 'アップロードに失敗しました',
+    en: 'Upload failed',
+    zh: '上传失败',
+    ko: '업로드에 실패했습니다',
+  },
+  attachmentBadge: {
+    ja: '添付ファイルあり',
+    en: 'File attached',
+    zh: '有附件',
+    ko: '첨부 파일 있음',
   },
   sendNowButton: {
     ja: '今すぐ配信する',

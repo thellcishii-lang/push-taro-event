@@ -13,6 +13,21 @@ service firebase.storage {
         && request.resource.contentType == 'application/pdf'
         && request.resource.size <= 10 * 1024 * 1024;
     }
+    // 配信の宣伝ファイル（PDF / 画像）: お知らせから開くので読み取りは公開。
+    // 書き込みはそのイベントの主催者だけ。種別は拡張子と Content-Type の
+    // 両方で縛り、容量は 10MB まで。削除はクライアントからは許可しない。
+    match /events/{eventId}/campaign-files/{fileName} {
+      allow read: if true;
+      allow create, update: if request.auth != null
+        && get(/databases/(default)/documents/events/{eventId}).data.ownerUid == request.auth.uid
+        && request.resource.size <= 10 * 1024 * 1024
+        && (
+          (fileName.matches('.*\\.pdf')
+            && request.resource.contentType == 'application/pdf')
+          || (fileName.matches('.*\\.(png|jpe?g|webp|gif)')
+            && request.resource.contentType.matches('image/.*'))
+        );
+    }
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { localeTopic } from './event';
 import {
   EventCampaign,
+  buildNotices,
   isCampaignDue,
   isFifteenMinuteSlot,
   jstDateTimeString,
   localizedCampaignTexts,
+  parseCampaignAttachment,
+  readCampaignAttachment,
 } from './event-push';
 
 describe('isFifteenMinuteSlot', () => {
@@ -59,6 +62,154 @@ describe('localeTopic', () => {
   it('言語別トピック名を組み立てる', () => {
     expect(localeTopic('ev1', 'ja')).toBe('event_ev1_users_ja');
     expect(localeTopic('ev1', 'ko')).toBe('event_ev1_users_ko');
+  });
+});
+
+describe('parseCampaignAttachment', () => {
+  const pdf = {
+    url: 'https://example.com/flyer.pdf?token=abc',
+    type: 'pdf',
+    storagePath: 'events/ev1/campaign-files/abc.pdf',
+  };
+  const image = {
+    url: 'https://example.com/photo.png?token=abc',
+    type: 'image',
+    storagePath: 'events/ev1/campaign-files/def.png',
+  };
+
+  it('未指定は添付なしとして受け付ける', () => {
+    expect(parseCampaignAttachment('ev1', null)).toEqual({ ok: true, attachment: null });
+    expect(parseCampaignAttachment('ev1', undefined)).toEqual({ ok: true, attachment: null });
+  });
+  it('PDF と画像の添付を受け付ける', () => {
+    expect(parseCampaignAttachment('ev1', pdf)).toEqual({ ok: true, attachment: pdf });
+    expect(parseCampaignAttachment('ev1', image)).toEqual({ ok: true, attachment: image });
+    expect(
+      parseCampaignAttachment('ev1', {
+        ...image,
+        storagePath: 'events/ev1/campaign-files/ghi.JPG',
+      }).ok,
+    ).toBe(true);
+  });
+  it('他イベントや別ディレクトリのパスは受け付けない', () => {
+    expect(
+      parseCampaignAttachment('ev1', {
+        ...pdf,
+        storagePath: 'events/ev2/campaign-files/abc.pdf',
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseCampaignAttachment('ev1', {
+        ...pdf,
+        storagePath: 'events/ev1/info-pdfs/abc.pdf',
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseCampaignAttachment('ev1', {
+        ...pdf,
+        storagePath: 'events/ev1/campaign-files/sub/abc.pdf',
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseCampaignAttachment('ev1', {
+        ...pdf,
+        storagePath: 'events/ev1/campaign-files/../abc.pdf',
+      }).ok,
+    ).toBe(false);
+  });
+  it('種別と拡張子が一致しないものは受け付けない', () => {
+    expect(parseCampaignAttachment('ev1', { ...pdf, type: 'image' }).ok).toBe(false);
+    expect(
+      parseCampaignAttachment('ev1', { ...image, storagePath: 'events/ev1/campaign-files/x.bmp' }).ok,
+    ).toBe(false);
+    expect(parseCampaignAttachment('ev1', { ...pdf, type: 'file' }).ok).toBe(false);
+  });
+  it('https でない URL や欠けた項目は受け付けない', () => {
+    expect(parseCampaignAttachment('ev1', { ...pdf, url: 'http://example.com/x.pdf' }).ok).toBe(false);
+    expect(parseCampaignAttachment('ev1', { type: 'pdf', storagePath: pdf.storagePath }).ok).toBe(false);
+    expect(parseCampaignAttachment('ev1', 'not-an-object').ok).toBe(false);
+  });
+});
+
+describe('readCampaignAttachment', () => {
+  it('不正な値は添付なしに倒す', () => {
+    expect(readCampaignAttachment('ev1', { url: 'x' })).toBeNull();
+    expect(readCampaignAttachment('ev1', null)).toBeNull();
+    expect(
+      readCampaignAttachment('ev1', {
+        url: 'https://example.com/a.pdf',
+        type: 'pdf',
+        storagePath: 'events/ev1/campaign-files/a.pdf',
+      }),
+    ).toEqual({
+      url: 'https://example.com/a.pdf',
+      type: 'pdf',
+      storagePath: 'events/ev1/campaign-files/a.pdf',
+    });
+  });
+});
+
+describe('buildNotices', () => {
+  const makeCampaign = (overrides: Partial<EventCampaign>): EventCampaign => ({
+    id: 'c1',
+    title: 'お知らせ',
+    body: '本文です',
+    titleI18n: { ja: 'お知らせ', en: 'Notice' },
+    bodyI18n: { ja: '本文です', en: 'Body text' },
+    kind: 'instant',
+    status: 'sent',
+    scheduledAt: null,
+    sentAt: '2026-11-07T01:00:00.000Z',
+    sentCount: 3,
+    error: null,
+    sendingStartedAt: null,
+    attachment: null,
+    createdAt: '2026-11-07T01:00:00.000Z',
+    ...overrides,
+  });
+
+  it('送信済みだけを新しい順に返す', () => {
+    const notices = buildNotices(
+      [
+        makeCampaign({ id: 'old', sentAt: '2026-11-06T01:00:00.000Z' }),
+        makeCampaign({ id: 'draft', status: 'scheduled', sentAt: null }),
+        makeCampaign({ id: 'failed', status: 'failed', sentAt: null }),
+        makeCampaign({ id: 'new', sentAt: '2026-11-07T05:00:00.000Z' }),
+      ],
+      'ja',
+    );
+    expect(notices.map((n) => n.id)).toEqual(['new', 'old']);
+  });
+  it('本人の言語で文面を解決し、無ければ原文に落とす', () => {
+    const notices = buildNotices([makeCampaign({})], 'en', 'ja');
+    expect(notices[0].title).toBe('Notice');
+    expect(notices[0].body).toBe('Body text');
+    const koNotices = buildNotices(
+      [makeCampaign({ titleI18n: {}, bodyI18n: {} })],
+      'ko',
+      'en',
+    );
+    expect(koNotices[0].title).toBe('お知らせ');
+  });
+  it('上限件数で切り、添付を引き継ぐ', () => {
+    const attachment = {
+      url: 'https://example.com/a.pdf',
+      type: 'pdf' as const,
+      storagePath: 'events/ev1/campaign-files/a.pdf',
+    };
+    const notices = buildNotices(
+      [
+        makeCampaign({ id: 'a', sentAt: '2026-11-07T01:00:00.000Z', attachment }),
+        makeCampaign({ id: 'b', sentAt: '2026-11-07T02:00:00.000Z' }),
+        makeCampaign({ id: 'c', sentAt: '2026-11-07T03:00:00.000Z' }),
+      ],
+      'ja',
+      undefined,
+      2,
+    );
+    expect(notices.map((n) => n.id)).toEqual(['c', 'b']);
+    const withAttachment = buildNotices([makeCampaign({ attachment })], 'ja');
+    expect(withAttachment[0].attachment).toEqual(attachment);
   });
 });
 

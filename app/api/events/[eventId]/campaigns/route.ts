@@ -11,6 +11,7 @@ import {
   isFifteenMinuteSlot,
   jstDateTimeString,
   listCampaigns,
+  parseCampaignAttachment,
 } from '@/lib/event-push';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +46,13 @@ export async function POST(
   if (!title.trim() || !pushBody.trim()) {
     return NextResponse.json({ error: 'タイトルと本文が必要です' }, { status: 400 });
   }
+  // 宣伝ファイルの添付（任意）。検証は lib 側の純粋関数に寄せ、
+  // ここでは 400 として早く返す（保存時にも同じ検証がかかる）。
+  const parsedAttachment = parseCampaignAttachment(eventId, body.attachment);
+  if (!parsedAttachment.ok) {
+    return NextResponse.json({ error: parsedAttachment.error }, { status: 400 });
+  }
+  const attachment = parsedAttachment.attachment;
 
   const now = new Date();
   const nowJst = jstDateTimeString(now);
@@ -70,6 +78,7 @@ export async function POST(
         body: pushBody,
         kind: 'scheduled',
         scheduledAt,
+        attachment,
       });
       return NextResponse.json({ campaign }, { status: 201 });
     }
@@ -80,6 +89,7 @@ export async function POST(
       body: pushBody,
       kind: 'instant',
       scheduledAt: nowJst,
+      attachment,
     });
     const result = await executeCampaign(eventId, campaign.id);
     const executed = await getCampaign(eventId, campaign.id);
