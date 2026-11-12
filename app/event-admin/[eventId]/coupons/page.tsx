@@ -11,6 +11,8 @@
 // （以前は画面最下部にしか出ず、実利用で「何も起きない」ように見えた）。
 // 登録成功時は追加された行までスクロールして一時的にハイライトし、
 // 送信中はボタンの文言も「登録中…」に変えて手応えを出す。
+// 出店者一覧は100社規模でも使えるよう、検索＋先頭2社＋アコーディオンにし、
+// 行タップで下のクーポン一覧をその出店者だけに絞り込めるようにした。
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
@@ -58,6 +60,8 @@ const VIOLET = '#6D28D9';
 
 /** クーポンオプションで増やせるイベント単位の上限（LP 記載）。 */
 const COUPON_OPTION_MAX_CAP = 500;
+/** 出店者一覧で既定表示する件数（残りはアコーディオンに畳む）。 */
+const EXHIBITOR_PREVIEW_COUNT = 2;
 /** クーポンオプションの購入先（本家の決済ページ）。 */
 const HONKE_COUPON_OPTION_URL = 'https://push-taro.com/event-option';
 
@@ -160,6 +164,10 @@ export default function EventCouponAdminPage() {
   const [pendingForm, setPendingForm] = useState<'exhibitor' | 'coupon' | null>(null);
   // 登録直後にスクロール＋ハイライトする行。
   const [highlight, setHighlight] = useState<{ kind: 'exhibitor' | 'coupon'; id: string } | null>(null);
+  // 出店者一覧の検索文字列、アコーディオンの開閉、クーポン一覧の出店者絞り込み。
+  const [exhibitorSearch, setExhibitorSearch] = useState('');
+  const [exhibitorsExpanded, setExhibitorsExpanded] = useState(false);
+  const [couponExhibitorFilter, setCouponExhibitorFilter] = useState<string | null>(null);
 
   // 追加された行が見える位置までスクロールし、しばらくハイライトする。
   useEffect(() => {
@@ -252,7 +260,13 @@ export default function EventCouponAdminPage() {
       }
       await loadAll();
       const newId = typeof result?.exhibitor?.id === 'string' ? result.exhibitor.id : null;
-      if (newId) setHighlight({ kind: 'exhibitor', id: newId });
+      if (newId) {
+        // 新規行が検索やアコーディオンの外に隠れないよう、検索を解除して
+        // 一覧を展開してからハイライトする（スクロール＆ハイライトの担保）。
+        setExhibitorSearch('');
+        setExhibitorsExpanded(true);
+        setHighlight({ kind: 'exhibitor', id: newId });
+      }
     } catch (e) {
       setExhibitorMessage(e instanceof Error ? e.message : adminText(locale, 'exhibitorAddFailed'));
     } finally {
@@ -319,6 +333,8 @@ export default function EventCouponAdminPage() {
       });
       setCouponForm({ ...couponForm, title: '', description: '', keywords: '' });
       setCouponMessage(adminText(locale, 'couponAdded'));
+      // 別出店者で絞り込み中だと新規行が見えないため、絞り込みを外してから表示する。
+      setCouponExhibitorFilter(null);
       await loadAll();
       const newId = typeof result?.coupon?.id === 'string' ? result.coupon.id : null;
       if (newId) setHighlight({ kind: 'coupon', id: newId });
@@ -329,6 +345,41 @@ export default function EventCouponAdminPage() {
       setPendingForm(null);
     }
   };
+
+  // 出店者行のタップで、その出店者のクーポンだけに絞り込む（同じ行をもう一度
+  // タップすると解除）。絞り込んだらクーポン一覧の先頭までスクロールする。
+  const handleSelectExhibitor = (exhibitor: Exhibitor) => {
+    const selecting = couponExhibitorFilter !== exhibitor.id;
+    setCouponExhibitorFilter(selecting ? exhibitor.id : null);
+    if (selecting) {
+      document
+        .getElementById('admin-coupons-section')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // 出店者一覧の表示対象。検索中は一致したものをすべて出し、未検索時は
+  // 先頭 EXHIBITOR_PREVIEW_COUNT 社だけを既定表示（残りはアコーディオン）。
+  const exhibitorQuery = exhibitorSearch.trim().toLowerCase();
+  const matchedExhibitors = exhibitorQuery
+    ? exhibitors.filter(
+        (exhibitor) =>
+          exhibitor.name.toLowerCase().includes(exhibitorQuery) ||
+          (exhibitor.email ?? '').toLowerCase().includes(exhibitorQuery),
+      )
+    : exhibitors;
+  const visibleExhibitors =
+    exhibitorQuery || exhibitorsExpanded
+      ? matchedExhibitors
+      : matchedExhibitors.slice(0, EXHIBITOR_PREVIEW_COUNT);
+  const hiddenExhibitorCount = matchedExhibitors.length - EXHIBITOR_PREVIEW_COUNT;
+  // クーポン一覧の絞り込み対象。対象の出店者がもう存在しない場合は絞らない。
+  const filterExhibitor = couponExhibitorFilter
+    ? (exhibitors.find((exhibitor) => exhibitor.id === couponExhibitorFilter) ?? null)
+    : null;
+  const visibleCoupons = filterExhibitor
+    ? coupons.filter((coupon) => coupon.exhibitorId === filterExhibitor.id)
+    : coupons;
 
   if (!authReady) return <main style={containerStyle}>{uiText(locale, 'loading')}</main>;
 
@@ -375,81 +426,137 @@ export default function EventCouponAdminPage() {
           {adminText(locale, 'exhibitorsTitle', { count: String(exhibitors.length) })}
         </h2>
         {exhibitors.length > 0 && (
-          <div style={{ ...cardStyle, padding: '4px 20px', marginTop: 12 }}>
-            {exhibitors.map((exhibitor, i) => (
-              <div
-                key={exhibitor.id}
-                id={`admin-row-exhibitor-${exhibitor.id}`}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontSize: 14,
-                  padding: '11px 0',
-                  borderBottom: i < exhibitors.length - 1 ? '1px solid #F0EDF8' : 'none',
-                  transition: 'background-color 0.5s ease',
-                  ...(highlight?.kind === 'exhibitor' && highlight.id === exhibitor.id
-                    ? {
-                        backgroundColor: '#F3EFFF',
-                        borderRadius: 8,
-                        padding: '11px 10px',
-                        margin: '0 -10px',
-                      }
-                    : null),
-                }}
-              >
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ fontWeight: 600, display: 'block' }}>{exhibitor.name}</span>
-                  <span
-                    style={{
-                      display: 'block',
-                      fontSize: 12,
-                      color: '#64748b',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {exhibitor.email ?? ''}
-                  </span>
-                </span>
-                <span
+          <>
+            <p style={{ fontSize: 12.5, color: '#64748b', marginTop: 5 }}>
+              {adminText(locale, 'exhibitorFilterHint')}
+            </p>
+            <input
+              style={{ ...inputStyle, marginTop: 10 }}
+              type="search"
+              value={exhibitorSearch}
+              onChange={(e) => setExhibitorSearch(e.target.value)}
+              placeholder={adminText(locale, 'exhibitorSearchPlaceholder')}
+              aria-label={adminText(locale, 'exhibitorSearchPlaceholder')}
+            />
+            <div style={{ ...cardStyle, padding: '4px 20px', marginTop: 12 }}>
+              {visibleExhibitors.map((exhibitor, i) => (
+                <div
+                  key={exhibitor.id}
+                  id={`admin-row-exhibitor-${exhibitor.id}`}
+                  onClick={() => handleSelectExhibitor(exhibitor)}
                   style={{
                     display: 'flex',
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                     gap: 8,
-                    flexShrink: 0,
+                    fontSize: 14,
+                    padding: '11px 0',
+                    cursor: 'pointer',
+                    borderBottom: i < visibleExhibitors.length - 1 ? '1px solid #F0EDF8' : 'none',
+                    transition: 'background-color 0.5s ease',
+                    ...(couponExhibitorFilter === exhibitor.id
+                      ? {
+                          backgroundColor: '#F5F3FF',
+                          borderRadius: 8,
+                          padding: '11px 10px',
+                          margin: '0 -10px',
+                        }
+                      : null),
+                    ...(highlight?.kind === 'exhibitor' && highlight.id === exhibitor.id
+                      ? {
+                          backgroundColor: '#F3EFFF',
+                          borderRadius: 8,
+                          padding: '11px 10px',
+                          margin: '0 -10px',
+                        }
+                      : null),
                   }}
                 >
-                  <span style={linkBadgeStyle(exhibitor.hasAccessCode)}>
-                    {exhibitor.hasAccessCode
-                      ? adminText(locale, 'exhibitorHasPassword')
-                      : adminText(locale, 'exhibitorNoPassword')}
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ fontWeight: 600, display: 'block' }}>{exhibitor.name}</span>
+                    <span
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        color: '#64748b',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {exhibitor.email ?? ''}
+                    </span>
                   </span>
-                  <button
-                    onClick={() => void handleReissueExhibitor(exhibitor)}
-                    disabled={busy}
+                  <span
                     style={{
-                      padding: '5px 12px',
-                      fontSize: 12.5,
-                      fontWeight: 600,
-                      borderRadius: 999,
-                      border: '1px solid #D9D4EC',
-                      backgroundColor: '#ffffff',
-                      color: VIOLET,
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      opacity: busy ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      flexShrink: 0,
                     }}
                   >
-                    {reissuingId === exhibitor.id && <ButtonSpinner />}
-                    {adminText(locale, 'exhibitorReissueButton')}
-                  </button>
-                </span>
-              </div>
-            ))}
-          </div>
+                    <span style={linkBadgeStyle(exhibitor.hasAccessCode)}>
+                      {exhibitor.hasAccessCode
+                        ? adminText(locale, 'exhibitorHasPassword')
+                        : adminText(locale, 'exhibitorNoPassword')}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        // 行タップの絞り込みに伝播させない（従来どおり再発行だけを行う）。
+                        e.stopPropagation();
+                        void handleReissueExhibitor(exhibitor);
+                      }}
+                      disabled={busy}
+                      style={{
+                        padding: '5px 12px',
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        borderRadius: 999,
+                        border: '1px solid #D9D4EC',
+                        backgroundColor: '#ffffff',
+                        color: VIOLET,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        opacity: busy ? 0.6 : 1,
+                      }}
+                    >
+                      {reissuingId === exhibitor.id && <ButtonSpinner />}
+                      {adminText(locale, 'exhibitorReissueButton')}
+                    </button>
+                  </span>
+                </div>
+              ))}
+              {matchedExhibitors.length === 0 && (
+                <p style={{ fontSize: 13, color: '#64748b', padding: '12px 0', margin: 0 }}>
+                  {adminText(locale, 'exhibitorSearchNoMatch')}
+                </p>
+              )}
+              {!exhibitorQuery && matchedExhibitors.length > EXHIBITOR_PREVIEW_COUNT && (
+                <button
+                  type="button"
+                  onClick={() => setExhibitorsExpanded((v) => !v)}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '11px 0',
+                    background: 'none',
+                    border: 'none',
+                    borderTop: '1px solid #F0EDF8',
+                    color: VIOLET,
+                    fontSize: 13.5,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {exhibitorsExpanded
+                    ? adminText(locale, 'exhibitorShowLess')
+                    : adminText(locale, 'exhibitorShowMore', {
+                        count: String(hiddenExhibitorCount),
+                      })}
+                </button>
+              )}
+            </div>
+          </>
         )}
         <div style={{ ...cardStyle, marginTop: 12, padding: 24 }}>
           <label style={labelStyle}>
@@ -476,7 +583,7 @@ export default function EventCouponAdminPage() {
         </div>
       </section>
 
-      <section style={{ marginTop: 30 }}>
+      <section id="admin-coupons-section" style={{ marginTop: 30 }}>
         <h2 style={sectionTitleStyle}>
           {adminText(locale, 'couponsCountTitle', { count: String(coupons.length), cap: String(couponCap) })}
         </h2>
@@ -518,7 +625,52 @@ export default function EventCouponAdminPage() {
             </a>
           )}
         </div>
-        {coupons.map((coupon) => (
+        {filterExhibitor && (
+          <div
+            style={{
+              ...cardStyle,
+              marginTop: 12,
+              padding: '12px 16px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 8,
+              backgroundColor: '#F5F3FF',
+              border: '1px solid #DDD6FE',
+            }}
+          >
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: '#4C1D95' }}>
+              {adminText(locale, 'couponFilterLabel', {
+                name: filterExhibitor.name,
+                count: String(visibleCoupons.length),
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setCouponExhibitorFilter(null)}
+              style={{
+                padding: '5px 12px',
+                fontSize: 12.5,
+                fontWeight: 600,
+                borderRadius: 999,
+                border: '1px solid #D9D4EC',
+                backgroundColor: '#ffffff',
+                color: VIOLET,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+              }}
+            >
+              {adminText(locale, 'couponFilterClear')}
+            </button>
+          </div>
+        )}
+        {filterExhibitor && visibleCoupons.length === 0 && (
+          <p style={{ fontSize: 13, color: '#64748b', marginTop: 12 }}>
+            {adminText(locale, 'couponsFilteredEmpty')}
+          </p>
+        )}
+        {visibleCoupons.map((coupon) => (
           <article
             key={coupon.id}
             id={`admin-row-coupon-${coupon.id}`}
