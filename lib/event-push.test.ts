@@ -66,68 +66,89 @@ describe('localeTopic', () => {
 });
 
 describe('parseCampaignAttachment', () => {
+  const owner = 'owner1';
   const pdf = {
     url: 'https://example.com/flyer.pdf?token=abc',
     type: 'pdf',
-    storagePath: 'events/ev1/campaign-files/abc.pdf',
+    storagePath: 'organizers/owner1/events/ev1/campaign-files/abc.pdf',
   };
   const image = {
     url: 'https://example.com/photo.png?token=abc',
     type: 'image',
-    storagePath: 'events/ev1/campaign-files/def.png',
+    storagePath: 'organizers/owner1/events/ev1/campaign-files/def.png',
   };
 
   it('未指定は添付なしとして受け付ける', () => {
-    expect(parseCampaignAttachment('ev1', null)).toEqual({ ok: true, attachment: null });
-    expect(parseCampaignAttachment('ev1', undefined)).toEqual({ ok: true, attachment: null });
+    expect(parseCampaignAttachment('ev1', owner, null)).toEqual({ ok: true, attachment: null });
+    expect(parseCampaignAttachment('ev1', owner, undefined)).toEqual({
+      ok: true,
+      attachment: null,
+    });
   });
   it('PDF と画像の添付を受け付ける', () => {
-    expect(parseCampaignAttachment('ev1', pdf)).toEqual({ ok: true, attachment: pdf });
-    expect(parseCampaignAttachment('ev1', image)).toEqual({ ok: true, attachment: image });
+    expect(parseCampaignAttachment('ev1', owner, pdf)).toEqual({ ok: true, attachment: pdf });
+    expect(parseCampaignAttachment('ev1', owner, image)).toEqual({ ok: true, attachment: image });
     expect(
-      parseCampaignAttachment('ev1', {
+      parseCampaignAttachment('ev1', owner, {
         ...image,
-        storagePath: 'events/ev1/campaign-files/ghi.JPG',
+        storagePath: 'organizers/owner1/events/ev1/campaign-files/ghi.JPG',
       }).ok,
     ).toBe(true);
   });
   it('他イベントや別ディレクトリのパスは受け付けない', () => {
     expect(
-      parseCampaignAttachment('ev1', {
+      parseCampaignAttachment('ev1', owner, {
         ...pdf,
-        storagePath: 'events/ev2/campaign-files/abc.pdf',
+        storagePath: 'organizers/owner1/events/ev2/campaign-files/abc.pdf',
       }).ok,
     ).toBe(false);
     expect(
-      parseCampaignAttachment('ev1', {
+      parseCampaignAttachment('ev1', owner, {
         ...pdf,
-        storagePath: 'events/ev1/info-pdfs/abc.pdf',
+        storagePath: 'organizers/owner1/events/ev1/info-pdfs/abc.pdf',
       }).ok,
     ).toBe(false);
     expect(
-      parseCampaignAttachment('ev1', {
+      parseCampaignAttachment('ev1', owner, {
         ...pdf,
-        storagePath: 'events/ev1/campaign-files/sub/abc.pdf',
+        storagePath: 'organizers/owner1/events/ev1/campaign-files/sub/abc.pdf',
       }).ok,
     ).toBe(false);
     expect(
-      parseCampaignAttachment('ev1', {
+      parseCampaignAttachment('ev1', owner, {
         ...pdf,
-        storagePath: 'events/ev1/campaign-files/../abc.pdf',
+        storagePath: 'organizers/owner1/events/ev1/campaign-files/../abc.pdf',
+      }).ok,
+    ).toBe(false);
+  });
+  it('他人の uid のパスや移行前の旧形式パスは登録では受け付けない', () => {
+    expect(
+      parseCampaignAttachment('ev1', owner, {
+        ...pdf,
+        storagePath: 'organizers/someone-else/events/ev1/campaign-files/abc.pdf',
+      }).ok,
+    ).toBe(false);
+    expect(
+      parseCampaignAttachment('ev1', owner, {
+        ...pdf,
+        storagePath: 'events/ev1/campaign-files/abc.pdf',
       }).ok,
     ).toBe(false);
   });
   it('種別と拡張子が一致しないものは受け付けない', () => {
-    expect(parseCampaignAttachment('ev1', { ...pdf, type: 'image' }).ok).toBe(false);
+    expect(parseCampaignAttachment('ev1', owner, { ...pdf, type: 'image' }).ok).toBe(false);
     expect(
-      parseCampaignAttachment('ev1', { ...image, storagePath: 'events/ev1/campaign-files/x.bmp' }).ok,
+      parseCampaignAttachment('ev1', owner, {
+        ...image,
+        storagePath: 'organizers/owner1/events/ev1/campaign-files/x.bmp',
+      }).ok,
     ).toBe(false);
-    expect(parseCampaignAttachment('ev1', { ...pdf, type: 'file' }).ok).toBe(false);
+    expect(parseCampaignAttachment('ev1', owner, { ...pdf, type: 'file' }).ok).toBe(false);
   });
   it('https でない URL や欠けた項目は受け付けない', () => {
-    expect(parseCampaignAttachment('ev1', { ...pdf, url: 'http://example.com/x.pdf' }).ok).toBe(false);
-    expect(parseCampaignAttachment('ev1', { type: 'pdf', storagePath: pdf.storagePath }).ok).toBe(false);
-    expect(parseCampaignAttachment('ev1', 'not-an-object').ok).toBe(false);
+    expect(parseCampaignAttachment('ev1', owner, { ...pdf, url: 'http://example.com/x.pdf' }).ok).toBe(false);
+    expect(parseCampaignAttachment('ev1', owner, { type: 'pdf', storagePath: pdf.storagePath }).ok).toBe(false);
+    expect(parseCampaignAttachment('ev1', owner, 'not-an-object').ok).toBe(false);
   });
 });
 
@@ -135,6 +156,19 @@ describe('readCampaignAttachment', () => {
   it('不正な値は添付なしに倒す', () => {
     expect(readCampaignAttachment('ev1', { url: 'x' })).toBeNull();
     expect(readCampaignAttachment('ev1', null)).toBeNull();
+  });
+  it('現行形式と移行前の旧形式のどちらも読み取れる', () => {
+    expect(
+      readCampaignAttachment('ev1', {
+        url: 'https://example.com/a.pdf',
+        type: 'pdf',
+        storagePath: 'organizers/owner1/events/ev1/campaign-files/a.pdf',
+      }),
+    ).toEqual({
+      url: 'https://example.com/a.pdf',
+      type: 'pdf',
+      storagePath: 'organizers/owner1/events/ev1/campaign-files/a.pdf',
+    });
     expect(
       readCampaignAttachment('ev1', {
         url: 'https://example.com/a.pdf',
@@ -146,6 +180,15 @@ describe('readCampaignAttachment', () => {
       type: 'pdf',
       storagePath: 'events/ev1/campaign-files/a.pdf',
     });
+  });
+  it('他イベントのパスは読み取らない', () => {
+    expect(
+      readCampaignAttachment('ev1', {
+        url: 'https://example.com/a.pdf',
+        type: 'pdf',
+        storagePath: 'organizers/owner1/events/ev2/campaign-files/a.pdf',
+      }),
+    ).toBeNull();
   });
 });
 
@@ -195,7 +238,7 @@ describe('buildNotices', () => {
     const attachment = {
       url: 'https://example.com/a.pdf',
       type: 'pdf' as const,
-      storagePath: 'events/ev1/campaign-files/a.pdf',
+      storagePath: 'organizers/owner1/events/ev1/campaign-files/a.pdf',
     };
     const notices = buildNotices(
       [

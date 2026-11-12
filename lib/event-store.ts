@@ -272,7 +272,8 @@ async function drainCollectionCompletely(
  * 対象は events/{eventId} 本体と、その配下の全サブコレクション
  * （subscribers / members / claims / redemptions / exhibitors / coupons /
  * campaigns / dailyStats / infoPdfs など、実在するものを listCollections で拾う）、
- * および Storage の events/{eventId}/ 配下（案内 PDF の実ファイル）。
+ * および Storage 上の実ファイル（現行形式 organizers/{ownerUid}/events/{eventId}/
+ * 配下と、移行前の旧形式 events/{eventId}/ 配下の両方）。
  * 最終レポート（event_reports）と運営用バックアップ（event_report_backups）は
  * 別コレクションにあり、ここでは一切触らない。
  *
@@ -284,10 +285,18 @@ async function drainCollectionCompletely(
  */
 export async function deleteEventCompletely(eventId: string): Promise<void> {
   const ref = db.collection(EVENTS_COLLECTION).doc(eventId);
-  // 1. Storage の実ファイル（案内 PDF 等）。
-  await getStorage()
-    .bucket()
-    .deleteFiles({ prefix: `events/${eventId}/` });
+  // 1. Storage の実ファイル（案内 PDF・宣伝ファイル等）。
+  //    保存済みパスは現行形式（organizers/{uid}/events/{eventId}/）と
+  //    移行前の旧形式（events/{eventId}/）が混在しうるので両方を消す。
+  const bucket = getStorage().bucket();
+  await bucket.deleteFiles({ prefix: `events/${eventId}/` });
+  const snap = await ref.get();
+  const ownerUid = snap.exists ? String(snap.data()?.ownerUid ?? '') : '';
+  if (ownerUid) {
+    await bucket.deleteFiles({
+      prefix: `organizers/${ownerUid}/events/${eventId}/`,
+    });
+  }
   // 2. サブコレクションをすべてチャンク削除する。
   const collections = await ref.listCollections();
   for (const collection of collections) {

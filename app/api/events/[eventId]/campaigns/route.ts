@@ -48,7 +48,7 @@ export async function POST(
   }
   // 宣伝ファイルの添付（任意）。検証は lib 側の純粋関数に寄せ、
   // ここでは 400 として早く返す（保存時にも同じ検証がかかる）。
-  const parsedAttachment = parseCampaignAttachment(eventId, body.attachment);
+  const parsedAttachment = parseCampaignAttachment(eventId, guard.uid, body.attachment);
   if (!parsedAttachment.ok) {
     return NextResponse.json({ error: parsedAttachment.error }, { status: 400 });
   }
@@ -78,6 +78,7 @@ export async function POST(
         body: pushBody,
         kind: 'scheduled',
         scheduledAt,
+        ownerUid: guard.uid,
         attachment,
       });
       return NextResponse.json({ campaign }, { status: 201 });
@@ -89,6 +90,7 @@ export async function POST(
       body: pushBody,
       kind: 'instant',
       scheduledAt: nowJst,
+      ownerUid: guard.uid,
       attachment,
     });
     const result = await executeCampaign(eventId, campaign.id);

@@ -230,7 +230,7 @@ export default function EventScheduleAdminPage() {
   // 宣伝ファイルは Storage へ直接アップロードし、生成された URL を
   // リンク先として配信に添付する（案内PDFと同じ方式）。
   const handleAttachmentSelect = async (file: File | undefined) => {
-    if (!file) return;
+    if (!file || !user) return;
     const ext = ATTACHMENT_MIME_TO_EXT[file.type];
     if (!ext) {
       setAttachmentError(adminText(locale, 'attachmentTypeError'));
@@ -243,7 +243,7 @@ export default function EventScheduleAdminPage() {
     setAttachmentUploading(true);
     setAttachmentError('');
     try {
-      const storagePath = `events/${eventId}/campaign-files/${crypto.randomUUID()}.${ext}`;
+      const storagePath = `organizers/${user.uid}/events/${eventId}/campaign-files/${crypto.randomUUID()}.${ext}`;
       const ref = storageRef(storage, storagePath);
       await uploadBytes(ref, file, { contentType: file.type });
       const url = await getDownloadURL(ref);

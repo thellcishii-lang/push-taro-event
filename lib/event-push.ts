@@ -50,7 +50,7 @@ export interface CampaignAttachment {
   /** 生成されたリンク先 URL（Storage のダウンロード URL） */
   url: string;
   type: CampaignAttachmentType;
-  /** Storage パス（events/{eventId}/campaign-files/{fileName}） */
+  /** Storage パス（organizers/{uid}/events/{eventId}/campaign-files/{fileName}） */
   storagePath: string;
 }
 
@@ -63,15 +63,45 @@ export const MAX_CAMPAIGN_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 
 /**
- * 添付情報の検証（純粋関数）。
- * 未指定（null / undefined）は「添付なし」として受け付ける。
- * Storage パスは自イベントの campaign-files 配下だけを許可し、
- * 種別と拡張子の対応もここで担保する（他人のファイルや任意パスへの
- * リンク化を防ぐ）。
+ * campaign 添付の Storage パスを分解する（純粋関数）。
+ * 現行形式は organizers/{uid}/events/{eventId}/campaign-files/{fileName} で、
+ * Storage ルールはパス内の uid とログイン uid の一致だけで書き込みを判定する
+ * （Firestore 参照は使わない）。移行前の events/{eventId}/campaign-files/… は
+ * uid: null として返す（読み取り専用）。どちらの形式でもないパスは null。
  */
-export function parseCampaignAttachment(
+function matchCampaignStoragePath(
+  eventId: string,
+  storagePath: unknown,
+): { uid: string | null; fileName: string } | null {
+  if (typeof storagePath !== 'string') return null;
+  const matched = storagePath.match(
+    /^organizers\/([^/]+)\/events\/([^/]+)\/campaign-files\/([^/]+)$/,
+  );
+  if (matched) {
+    if (matched[2] !== eventId) return null;
+    if (matched[3].includes('..')) return null;
+    return { uid: matched[1], fileName: matched[3] };
+  }
+  const legacyPrefix = `events/${eventId}/${CAMPAIGN_FILES_DIR}/`;
+  if (storagePath.startsWith(legacyPrefix)) {
+    const fileName = storagePath.slice(legacyPrefix.length);
+    if (!fileName || fileName.includes('/') || fileName.includes('..')) return null;
+    return { uid: null, fileName };
+  }
+  return null;
+}
+
+/**
+ * 添付情報の検証本体（純粋関数）。
+ * ownerUid を渡すと登録用検証になり、現行形式かつ所有者本人の uid の
+ * パスだけを受け付ける（旧形式・他人のパスは受け付けない）。
+ * ownerUid が null の読み取り時は、保存済みデータとして旧形式も通す。
+ * 種別と拡張子の対応もここで担保する（任意パスへのリンク化を防ぐ）。
+ */
+function parseAttachmentValue(
   eventId: string,
   raw: unknown,
+  ownerUid: string | null,
 ): { ok: true; attachment: CampaignAttachment | null } | { ok: false; error: string } {
   if (raw === null || raw === undefined) return { ok: true, attachment: null };
   if (typeof raw !== 'object') {
@@ -87,33 +117,44 @@ export function parseCampaignAttachment(
   if (type !== 'pdf' && type !== 'image') {
     return { ok: false, error: '添付ファイルの種別が不正です' };
   }
-  const prefix = `events/${eventId}/${CAMPAIGN_FILES_DIR}/`;
-  if (typeof storagePath !== 'string' || !storagePath.startsWith(prefix)) {
+  const matched = matchCampaignStoragePath(eventId, storagePath);
+  if (!matched || (ownerUid !== null && matched.uid !== ownerUid)) {
     return { ok: false, error: '添付ファイルの保存先が不正です' };
   }
-  const fileName = storagePath.slice(prefix.length);
-  if (!fileName || fileName.includes('/') || fileName.includes('..')) {
-    return { ok: false, error: '添付ファイルの保存先が不正です' };
-  }
-  const lowerName = fileName.toLowerCase();
+  const lowerName = matched.fileName.toLowerCase();
   if (type === 'pdf' && !lowerName.endsWith('.pdf')) {
     return { ok: false, error: '添付ファイルの種別と拡張子が一致しません' };
   }
   if (type === 'image' && !IMAGE_EXTENSIONS.some((ext) => lowerName.endsWith(ext))) {
     return { ok: false, error: '添付ファイルの種別と拡張子が一致しません' };
   }
-  return { ok: true, attachment: { url, type, storagePath } };
+  return { ok: true, attachment: { url, type, storagePath: storagePath as string } };
+}
+
+/**
+ * 添付情報の登録用検証（純粋関数）。
+ * 未指定（null / undefined）は「添付なし」として受け付ける。
+ * Storage パスは所有者本人の organizers/{ownerUid}/events/{eventId}/
+ * campaign-files/ 配下だけを許可する。旧形式の登録は受け付けない。
+ */
+export function parseCampaignAttachment(
+  eventId: string,
+  ownerUid: string,
+  raw: unknown,
+): { ok: true; attachment: CampaignAttachment | null } | { ok: false; error: string } {
+  return parseAttachmentValue(eventId, raw, ownerUid);
 }
 
 /**
  * Firestore から読んだ添付情報を解釈する（防御的読み取り）。
- * 検証を通らない値は「添付なし」に倒す（移行前の campaign でも壊れない）。
+ * 検証を通らない値は「添付なし」に倒す。移行前の旧形式パスで保存された
+ * campaign の添付も表示が消えないよう、読み取りでは旧形式も受け付ける。
  */
 export function readCampaignAttachment(
   eventId: string,
   raw: unknown,
 ): CampaignAttachment | null {
-  const parsed = parseCampaignAttachment(eventId, raw);
+  const parsed = parseAttachmentValue(eventId, raw, null);
   return parsed.ok ? parsed.attachment : null;
 }
 
@@ -205,6 +246,8 @@ export async function createCampaignRecord(
     body: string;
     kind: CampaignKind;
     scheduledAt: string;
+    /** イベント所有者の uid（添付パスの所有者検証に使う） */
+    ownerUid: string;
     /** 宣伝ファイルの添付（任意、未検証の値でもよい） */
     attachment?: unknown;
   },
@@ -213,7 +256,7 @@ export async function createCampaignRecord(
   const body = input.body.trim();
   if (!title) throw new Error('タイトルが必要です');
   if (!body) throw new Error('本文が必要です');
-  const parsedAttachment = parseCampaignAttachment(eventId, input.attachment);
+  const parsedAttachment = parseCampaignAttachment(eventId, input.ownerUid, input.attachment);
   if (!parsedAttachment.ok) throw new Error(parsedAttachment.error);
   // 作成時に翻訳を揃える（即時配信でも翻訳待ちを作らない）。失敗時は空マップで続行。
   const [titleI18n, bodyI18n] = await Promise.all([
