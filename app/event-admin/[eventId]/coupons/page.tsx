@@ -369,6 +369,26 @@ export default function EventCouponAdminPage() {
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'couponsPageTitle')}</h1>
       <CapWarningBanner locale={locale} />
       {loadMessage && <p style={adminErrorTextStyle}>{loadMessage}</p>}
+      <div style={{ marginTop: 14, display: 'flex', justifyContent: 'flex-end' }}>
+        <a
+          href={`/event-admin/${eventId}/coupons/print`}
+          target="_blank"
+          rel="noreferrer"
+          style={{
+            padding: '10px 18px',
+            fontWeight: 700,
+            fontSize: 13.5,
+            border: '1px solid #D9D4EC',
+            borderRadius: 12,
+            backgroundColor: '#ffffff',
+            color: VIOLET,
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {adminText(locale, 'downloadListButton')}
+        </a>
+      </div>
 
       <section style={{ marginTop: 22 }}>
         <h2 style={sectionTitleStyle}>
