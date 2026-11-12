@@ -1641,6 +1641,24 @@ export const ADMIN_TEXT = {
     zh: 'URL必须以 https:// 开头',
     ko: 'URL은 https://로 시작해야 합니다',
   },
+  visitorQrTitle: {
+    ja: '来場者登録用QRコード',
+    en: 'Visitor registration QR code',
+    zh: '访客登记二维码',
+    ko: '방문객 등록 QR 코드',
+  },
+  visitorQrNote: {
+    ja: 'このQRコードを読み取ると、このイベントの来場者ページが開きます。ポスターなどに印刷して会場に掲示してください。',
+    en: 'Scanning this QR code opens this event’s visitor page. Print it on posters and display it at the venue.',
+    zh: '扫描此二维码可打开本活动的访客页面。请打印在海报上并张贴于会场。',
+    ko: '이 QR 코드를 스캔하면 이 이벤트의 방문객 페이지가 열립니다. 포스터 등에 인쇄해 행사장에 게시해 주세요.',
+  },
+  visitorQrDownloadButton: {
+    ja: 'QRコードをダウンロード（PNG）',
+    en: 'Download QR code (PNG)',
+    zh: '下载二维码（PNG）',
+    ko: 'QR 코드 다운로드(PNG)',
+  },
   passwordChangeTitle: {
     ja: 'パスワードの変更が必要です',
     en: 'Password change required',
