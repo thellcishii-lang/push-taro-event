@@ -30,6 +30,7 @@ import PasswordInput from '@/components/PasswordInput';
 import { AdminLanguageSelect, useAdminLocale } from '@/components/AdminLocale';
 import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminShell } from '@/components/AdminShell';
+import { VisitorQr } from '@/components/VisitorQr';
 import { AdminNav } from './[eventId]/AdminNav';
 import {
   ADMIN_CARD_BORDER,
@@ -185,6 +186,12 @@ const cardActionOutlineStyle: React.CSSProperties = {
   backgroundColor: '#ffffff',
   border: '1.5px solid #C4B5FD',
   color: VIOLET,
+};
+
+const qrButtonStyle: React.CSSProperties = {
+  ...cardActionOutlineStyle,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
 };
 
 const noticeStyle: React.CSSProperties = {
@@ -637,6 +644,32 @@ export default function EventAdminPage() {
                   <a href={`/event-admin/${event.id}/coupons`} style={cardActionOutlineStyle}>
                     {adminText(locale, 'navCoupons')}
                   </a>
+                </div>
+                <div
+                  style={{
+                    marginTop: 16,
+                    paddingTop: 14,
+                    borderTop: '1px solid #E7E3F4',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 700,
+                      color: '#475569',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {adminText(locale, 'visitorQrTitle')}
+                  </div>
+                  <div style={{ marginTop: 10 }}>
+                    <VisitorQr
+                      eventId={event.id}
+                      locale={locale}
+                      size={112}
+                      buttonStyle={qrButtonStyle}
+                    />
+                  </div>
                 </div>
               </li>
             );
