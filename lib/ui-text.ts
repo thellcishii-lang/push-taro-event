@@ -1317,6 +1317,12 @@ export const ADMIN_TEXT = {
     zh: '优惠券管理',
     ko: '쿠폰 관리',
   },
+  downloadListButton: {
+    ja: '出店者・クーポン一覧をダウンロード',
+    en: 'Download exhibitor & coupon list',
+    zh: '下载参展商与优惠券列表',
+    ko: '출점자·쿠폰 목록 다운로드',
+  },
   settingsPageTitle: {
     ja: '設定',
     en: 'Settings',
