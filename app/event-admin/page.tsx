@@ -3,6 +3,9 @@
 // app/event-admin/page.tsx
 // Push-taro EVENT の主催者向けイベント設定画面。
 // イベントの一覧・作成・編集（開催期間／リセット方式／リセット時刻／上限／バックアップ保持日数／状態）。
+// 作成は「下書きで作成」と「登録（開催中として作成）」の2ボタンで状態を明示する。
+// 下書きはカードの「開催中にする」から公開でき、下書きと終了はカードから
+// 削除できる（開催中は削除不可。削除は DELETE /api/events/[eventId]）。
 // 将来の管理画面3分割（プッシュ＋消込／予約／クーポン管理）の土台として、
 // まずはイベント設定に絞った単独画面にしている。
 // 同時に仕込めるイベントは3つまで（下書き＋開催中。終了は数えない）で、
@@ -188,6 +191,32 @@ const cardActionOutlineStyle: React.CSSProperties = {
   color: VIOLET,
 };
 
+const cardActionButtonStyle: React.CSSProperties = {
+  ...cardActionOutlineStyle,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+
+const cardActionDangerStyle: React.CSSProperties = {
+  ...cardActionBaseStyle,
+  backgroundColor: '#ffffff',
+  border: '1.5px solid #F3B4B4',
+  color: '#B91C1C',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  padding: '12px 22px',
+  fontWeight: 700,
+  fontSize: 15,
+  backgroundColor: '#ffffff',
+  color: VIOLET,
+  border: '1.5px solid #C4B5FD',
+  borderRadius: 12,
+  cursor: 'pointer',
+};
+
 const qrButtonStyle: React.CSSProperties = {
   ...cardActionOutlineStyle,
   cursor: 'pointer',
@@ -244,6 +273,11 @@ export default function EventAdminPage() {
   const [message, setMessage] = useState('');
   const [loadMessage, setLoadMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  // イベントフォームの送信中状態（保存／下書きで作成／登録で作成を区別する）。
+  const [formBusy, setFormBusy] = useState<null | 'save' | 'draft' | 'live'>(null);
+  // カード上のアクション（開催中にする／削除）の処理中と結果表示。
+  const [cardBusy, setCardBusy] = useState<{ id: string; action: 'publish' | 'delete' } | null>(null);
+  const [cardFeedback, setCardFeedback] = useState<{ id: string; text: string; error: boolean } | null>(null);
   // 初回パスワード変更ゲートの状態（unknown の間は管理画面を出さない）。
   const [passwordGate, setPasswordGate] = useState<'unknown' | 'required' | 'clear'>('unknown');
   const [newPassword, setNewPassword] = useState('');
@@ -363,41 +397,110 @@ export default function EventAdminPage() {
     }
   };
 
+  const buildPayload = () => ({
+    name: form.name,
+    startDate: form.startDate,
+    endDate: form.endDate,
+    resetMode: form.resetMode,
+    resetTime: form.resetTime,
+    defaultLocale: form.defaultLocale,
+    admissionQrEnabled: form.admissionQrEnabled,
+    // 購読者上限は契約枠（料金の軸）なので主催者からは送信しない。運営側のみ変更可。
+    backupRetentionDays: Number(form.backupRetentionDays),
+  });
+
   const handleSave = async () => {
-    setBusy(true);
+    if (!selectedId) return;
+    setFormBusy('save');
     setMessage('');
-    const payload = {
-      name: form.name,
-      startDate: form.startDate,
-      endDate: form.endDate,
-      resetMode: form.resetMode,
-      resetTime: form.resetTime,
-      defaultLocale: form.defaultLocale,
-      admissionQrEnabled: form.admissionQrEnabled,
-      // 購読者上限は契約枠（料金の軸）なので主催者からは送信しない。運営側のみ変更可。
-      backupRetentionDays: Number(form.backupRetentionDays),
-      ...(selectedId ? { status: form.status } : {}),
-    };
     try {
-      if (selectedId) {
-        await callApi(`/api/events/${selectedId}`, {
-          method: 'PATCH',
-          body: JSON.stringify(payload),
-        });
-        setMessage(adminText(locale, 'savedMessage'));
-      } else {
-        const data = await callApi('/api/events', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-        setSelectedId(data.event.id);
-        setMessage(adminText(locale, 'createdMessage'));
-      }
+      await callApi(`/api/events/${selectedId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ ...buildPayload(), status: form.status }),
+      });
+      setMessage(adminText(locale, 'savedMessage'));
       await loadEvents();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : adminText(locale, 'saveFailed'));
     } finally {
-      setBusy(false);
+      setFormBusy(null);
+    }
+  };
+
+  // 新規作成は「下書き」と「登録（開催中として作成）」の2ボタンから、
+  // 作りたい状態を明示して作る（以前は常に下書きで作られていた）。
+  const handleCreate = async (status: 'draft' | 'live') => {
+    setFormBusy(status);
+    setMessage('');
+    try {
+      const data = await callApi('/api/events', {
+        method: 'POST',
+        body: JSON.stringify({ ...buildPayload(), status }),
+      });
+      setSelectedId(data.event.id);
+      setMessage(
+        adminText(locale, status === 'live' ? 'createdLiveMessage' : 'createdMessage'),
+      );
+      await loadEvents();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : adminText(locale, 'saveFailed'));
+    } finally {
+      setFormBusy(null);
+    }
+  };
+
+  // 下書きカードの「開催中にする」。既存の更新 API で状態だけを変え、
+  // 成功したらカード表示を即時に切り替える。失敗理由はカードの近くに出す。
+  const handlePublish = async (event: EventConfig) => {
+    setCardBusy({ id: event.id, action: 'publish' });
+    setCardFeedback(null);
+    try {
+      const data = await callApi(`/api/events/${event.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'live' }),
+      });
+      setEvents((prev) =>
+        prev.map((e) => (e.id === event.id ? (data.event as EventConfig) : e)),
+      );
+      setCardFeedback({
+        id: event.id,
+        text: adminText(locale, 'publishedMessage'),
+        error: false,
+      });
+    } catch (e) {
+      setCardFeedback({
+        id: event.id,
+        text: e instanceof Error ? e.message : adminText(locale, 'publishFailed'),
+        error: true,
+      });
+    } finally {
+      setCardBusy(null);
+    }
+  };
+
+  // 下書き・終了イベントの削除。確認ダイアログ（イベント名＋復元不可の明示）を
+  // 挟み、成功したら一覧から取り除く。編集中のイベントを消した場合は
+  // フォームを新規作成の状態に戻す。
+  const handleDelete = async (event: EventConfig) => {
+    if (!window.confirm(adminText(locale, 'deleteConfirm', { name: event.name }))) return;
+    setCardBusy({ id: event.id, action: 'delete' });
+    setCardFeedback(null);
+    try {
+      await callApi(`/api/events/${event.id}`, { method: 'DELETE' });
+      setEvents((prev) => prev.filter((e) => e.id !== event.id));
+      if (selectedId === event.id) {
+        setSelectedId(null);
+        setForm(emptyForm);
+        setMessage(adminText(locale, 'deletedMessage'));
+      }
+    } catch (e) {
+      setCardFeedback({
+        id: event.id,
+        text: e instanceof Error ? e.message : adminText(locale, 'deleteFailed'),
+        error: true,
+      });
+    } finally {
+      setCardBusy(null);
     }
   };
 
@@ -516,21 +619,10 @@ export default function EventAdminPage() {
               })}
             </p>
           </div>
-          {capReached ? (
+          {capReached && (
             <p style={{ ...noticeStyle, margin: 0 }}>
               {adminText(locale, 'concurrentCapReached', { cap: String(MAX_CONCURRENT_EVENTS) })}
             </p>
-          ) : (
-            <button
-              onClick={() => {
-                setSelectedId(null);
-                setForm(emptyForm);
-                setMessage('');
-              }}
-              style={primaryButtonStyle}
-            >
-              {adminText(locale, 'newEventButton')}
-            </button>
           )}
         </div>
         {loadMessage && <p style={adminErrorTextStyle}>{loadMessage}</p>}
@@ -645,6 +737,47 @@ export default function EventAdminPage() {
                     {adminText(locale, 'navCoupons')}
                   </a>
                 </div>
+                {(event.status === 'draft' || event.status === 'ended') && (
+                  <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {event.status === 'draft' && (
+                      <button
+                        onClick={() => void handlePublish(event)}
+                        disabled={cardBusy?.id === event.id}
+                        style={cardActionButtonStyle}
+                      >
+                        <span style={adminButtonContentStyle}>
+                          {cardBusy?.id === event.id && cardBusy.action === 'publish' && (
+                            <ButtonSpinner />
+                          )}
+                          {adminText(locale, 'publishButton')}
+                        </span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => void handleDelete(event)}
+                      disabled={cardBusy?.id === event.id}
+                      style={cardActionDangerStyle}
+                    >
+                      <span style={adminButtonContentStyle}>
+                        {cardBusy?.id === event.id && cardBusy.action === 'delete' && (
+                          <ButtonSpinner />
+                        )}
+                        {adminText(locale, 'deleteButton')}
+                      </span>
+                    </button>
+                  </div>
+                )}
+                {cardFeedback?.id === event.id && (
+                  <p
+                    style={{
+                      fontSize: 13,
+                      margin: '10px 0 0',
+                      color: cardFeedback.error ? '#b91c1c' : '#15803d',
+                    }}
+                  >
+                    {cardFeedback.text}
+                  </p>
+                )}
                 <div
                   style={{
                     marginTop: 16,
@@ -784,16 +917,41 @@ export default function EventAdminPage() {
             </select>
           </label>
         )}
-        <button
-          onClick={handleSave}
-          disabled={busy || (!selected && capReached)}
-          style={primaryButtonStyle}
-        >
-          <span style={adminButtonContentStyle}>
-            {busy && <ButtonSpinner />}
-            {selected ? adminText(locale, 'saveButton') : adminText(locale, 'createButton')}
-          </span>
-        </button>
+        {selected ? (
+          <button
+            onClick={handleSave}
+            disabled={formBusy !== null}
+            style={primaryButtonStyle}
+          >
+            <span style={adminButtonContentStyle}>
+              {formBusy === 'save' && <ButtonSpinner />}
+              {adminText(locale, 'saveButton')}
+            </span>
+          </button>
+        ) : (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => void handleCreate('draft')}
+              disabled={formBusy !== null || capReached}
+              style={secondaryButtonStyle}
+            >
+              <span style={adminButtonContentStyle}>
+                {formBusy === 'draft' && <ButtonSpinner />}
+                {adminText(locale, 'createDraftButton')}
+              </span>
+            </button>
+            <button
+              onClick={() => void handleCreate('live')}
+              disabled={formBusy !== null || capReached}
+              style={primaryButtonStyle}
+            >
+              <span style={adminButtonContentStyle}>
+                {formBusy === 'live' && <ButtonSpinner />}
+                {adminText(locale, 'createLiveButton')}
+              </span>
+            </button>
+          </div>
+        )}
         {message && <p style={adminFeedbackStyle}>{message}</p>}
       </section>
     </AdminShell>

@@ -3,7 +3,11 @@
 import { NextResponse } from 'next/server';
 import { getUidFromRequest, passwordChangeBlock } from '@/lib/event-auth';
 import { createEvent, listEventsByOwner } from '@/lib/event-store';
-import { EventResetMode, canCreateAnotherEvent } from '@/lib/event';
+import {
+  EventResetMode,
+  canCreateAnotherEvent,
+  resolveCreateStatus,
+} from '@/lib/event';
 import { findOrganizerByOwnerUid, resolveEffectiveCaps } from '@/lib/organizers';
 import { Locale } from '@/lib/i18n';
 
@@ -59,6 +63,18 @@ export async function POST(request: Request) {
     );
   }
 
+  // 作成時の状態は「下書き」か「開催中」のどちらかを明示できる。
+  // 未指定は下書き。'ended' 等の不正な指定は 400。
+  let status: 'draft' | 'live';
+  try {
+    status = resolveCreateStatus(body.status);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : '状態の指定が不正です' },
+      { status: 400 },
+    );
+  }
+
   // 枠（購読者・クーポン）は契約側の現在値を継承する。主催者からは
   // 設定できない（料金＝契約枠の軸）。契約レコードが無い場合は既定値。
   const organizer = await findOrganizerByOwnerUid(uid);
@@ -70,6 +86,7 @@ export async function POST(request: Request) {
       ownerUid: uid,
       startDate,
       endDate,
+      status,
       resetMode: body.resetMode as EventResetMode | undefined,
       resetTime: body.resetTime as string | undefined,
       defaultLocale: body.defaultLocale as Locale | undefined,

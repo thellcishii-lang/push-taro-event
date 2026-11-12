@@ -4,6 +4,7 @@
 // 購読者・クーポン等は events/{eventId} 配下のサブコレクションに置く
 // （イベント単位で名前空間を分け、障害や削除が他イベントに波及しないようにする）。
 import { FieldValue } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { db } from './firebase-admin';
 import { DEFAULT_LOCALE, isLocale, normalizeLocale } from './i18n';
 import {
@@ -79,7 +80,7 @@ export async function createEvent(input: CreateEventInput): Promise<EventConfig>
     couponCap: input.couponCap ?? MAX_COUPONS_PER_EVENT,
     backupRetentionDays:
       input.backupRetentionDays ?? DEFAULT_BACKUP_RETENTION_DAYS,
-    status: 'draft',
+    status: input.status ?? 'draft',
     lastResetDate: null,
     finalizedAt: null,
   };
@@ -246,4 +247,52 @@ export async function updateEvent(
       ...(links !== undefined ? { links } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
+}
+
+/** Firestore のバッチ上限（500）に対する安全側のチャンクサイズ。event-reset.ts と同じ値。 */
+const DELETE_CHUNK_SIZE = 450;
+
+/** コレクションを先頭からチャンク削除し、空になるまで繰り返す。 */
+async function drainCollectionCompletely(
+  collectionRef: FirebaseFirestore.CollectionReference,
+): Promise<void> {
+  for (;;) {
+    const snap = await collectionRef.limit(DELETE_CHUNK_SIZE).get();
+    if (snap.empty) return;
+    const batch = db.batch();
+    snap.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    if (snap.size < DELETE_CHUNK_SIZE) return;
+  }
+}
+
+/**
+ * イベントを完全に削除する（主催者の削除操作用）。
+ *
+ * 対象は events/{eventId} 本体と、その配下の全サブコレクション
+ * （subscribers / members / claims / redemptions / exhibitors / coupons /
+ * campaigns / dailyStats / infoPdfs など、実在するものを listCollections で拾う）、
+ * および Storage の events/{eventId}/ 配下（案内 PDF の実ファイル）。
+ * 最終レポート（event_reports）と運営用バックアップ（event_report_backups）は
+ * 別コレクションにあり、ここでは一切触らない。
+ *
+ * 終了処理（finalization）と違い、こちらはイベントドキュメント自体も消す。
+ * 想定する対象は下書きと終了済みで、終了済みは終了処理で主要サブコレクションが
+ * 既に消えており、下書きは来場者データを持たないため、一括で消し切れる。
+ * 途中で失敗しても、本体を最後に消すため再実行で残りを消せる（冪等）。
+ * 削除可否（状態チェック）は呼び出し側で行うこと。
+ */
+export async function deleteEventCompletely(eventId: string): Promise<void> {
+  const ref = db.collection(EVENTS_COLLECTION).doc(eventId);
+  // 1. Storage の実ファイル（案内 PDF 等）。
+  await getStorage()
+    .bucket()
+    .deleteFiles({ prefix: `events/${eventId}/` });
+  // 2. サブコレクションをすべてチャンク削除する。
+  const collections = await ref.listCollections();
+  for (const collection of collections) {
+    await drainCollectionCompletely(collection);
+  }
+  // 3. イベント本体。
+  await ref.delete();
 }
