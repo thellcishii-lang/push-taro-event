@@ -2,6 +2,7 @@ import { App, cert, getApps, initializeApp } from 'firebase-admin/app';
 import { Auth, getAuth } from 'firebase-admin/auth';
 import { Firestore, getFirestore } from 'firebase-admin/firestore';
 import { getMessaging, Messaging } from 'firebase-admin/messaging';
+import { resolveStorageBucket } from './storage-bucket';
 
 // 🔥 遅延初期化：初回アクセス時にのみ初期化する
 function getAdminApp(): App {
@@ -32,6 +33,9 @@ function getAdminApp(): App {
       clientEmail,
       privateKey,
     }),
+    // storageBucket を渡さないと getStorage().bucket() が
+    // "Bucket name not specified" で落ちる（イベント削除・PDF削除）。
+    storageBucket: resolveStorageBucket(process.env),
   });
 
   console.log('[firebase-admin.ts] Admin SDK 初期化完了');

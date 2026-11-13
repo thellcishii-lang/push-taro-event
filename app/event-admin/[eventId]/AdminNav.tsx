@@ -123,7 +123,14 @@ export function AdminNav({
   plain?: boolean;
 }) {
   const items = [
-    { key: '設定', href: '/event-admin', label: adminText(locale, 'navSettings'), icon: settingsIcon },
+    {
+      key: '設定',
+      // イベント内の画面からは、そのイベントの編集フォームへ直接戻れるよう
+      // ?edit=<eventId> を付ける（一覧側が読み取って選択＋スクロールする）。
+      href: eventId ? `/event-admin?edit=${eventId}` : '/event-admin',
+      label: adminText(locale, 'navSettings'),
+      icon: settingsIcon,
+    },
     ...(eventId
       ? [
           { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush'), icon: pushIcon },

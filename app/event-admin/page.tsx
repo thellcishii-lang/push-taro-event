@@ -6,6 +6,9 @@
 // 作成は「下書きで作成」と「登録（開催中として作成）」の2ボタンで状態を明示する。
 // 下書きはカードの「開催中にする」から公開でき、下書きと終了はカードから
 // 削除できる（開催中は削除不可。削除は DELETE /api/events/[eventId]）。
+// 編集はカードの「編集」ボタン（またはイベント名クリック）で選択して
+// フォームへスクロール。イベント内の画面の「イベント設定」は
+// ?edit=<eventId> 付きで戻り、この画面が読み取って同じ編集を開く。
 // 将来の管理画面3分割（プッシュ＋消込／予約／クーポン管理）の土台として、
 // まずはイベント設定に絞った単独画面にしている。
 // 同時に仕込めるイベントは3つまで（下書き＋開催中。終了は数えない）で、
@@ -20,7 +23,7 @@
 // メニュー開閉ボタンのアコーディオンになる。
 // フィードバック文は、それを起こした操作のすぐ近くに出す
 // （読込エラーは一覧の上、保存結果はフォーム内）。
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   User,
   onAuthStateChanged,
@@ -350,6 +353,32 @@ export default function EventAdminPage() {
   useEffect(() => {
     if (user && passwordGate === 'clear') void loadEvents();
   }, [user, passwordGate, loadEvents]);
+
+  // 編集フォーム（#event-form）までスクロールする。カードの「編集」と
+  // イベント名クリック、?edit= ディープリンクで共用する。
+  const scrollToEventForm = useCallback(() => {
+    requestAnimationFrame(() => {
+      document
+        .getElementById('event-form')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
+
+  // イベント内の画面の「イベント設定」から ?edit=<eventId> で戻ってきたら、
+  // そのイベントを選択して編集フォームを開く（初回のみ）。
+  const editParamApplied = useRef(false);
+  useEffect(() => {
+    if (editParamApplied.current || events.length === 0) return;
+    editParamApplied.current = true;
+    const editId = new URLSearchParams(window.location.search).get('edit');
+    if (!editId) return;
+    const target = events.find((e) => e.id === editId);
+    if (!target) return;
+    setSelectedId(target.id);
+    setForm(toForm(target));
+    setMessage('');
+    scrollToEventForm();
+  }, [events, scrollToEventForm]);
 
   const handlePasswordChange = async () => {
     if (!user) return;
@@ -684,6 +713,7 @@ export default function EventAdminPage() {
                     setSelectedId(event.id);
                     setForm(toForm(event));
                     setMessage('');
+                    scrollToEventForm();
                   }}
                   style={{
                     fontWeight: 800,
@@ -736,6 +766,18 @@ export default function EventAdminPage() {
                   <a href={`/event-admin/${event.id}/coupons`} style={cardActionOutlineStyle}>
                     {adminText(locale, 'navCoupons')}
                   </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(event.id);
+                      setForm(toForm(event));
+                      setMessage('');
+                      scrollToEventForm();
+                    }}
+                    style={cardActionButtonStyle}
+                  >
+                    {adminText(locale, 'editButton')}
+                  </button>
                 </div>
                 {(event.status === 'draft' || event.status === 'ended') && (
                   <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -810,7 +852,7 @@ export default function EventAdminPage() {
         </ul>
       </section>
 
-      <section style={{ ...cardStyle, marginTop: 28, padding: 24 }}>
+      <section id="event-form" style={{ ...cardStyle, marginTop: 28, padding: 24 }}>
         <h2 style={{ fontSize: 17, fontWeight: 800, margin: '0 0 14px' }}>
           {selected
             ? adminText(locale, 'editEventTitle', { name: selected.name })
