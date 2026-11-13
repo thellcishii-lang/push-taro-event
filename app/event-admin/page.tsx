@@ -7,8 +7,9 @@
 // 下書きはカードの「開催中にする」から公開でき、下書きと終了はカードから
 // 削除できる（開催中は削除不可。削除は DELETE /api/events/[eventId]）。
 // 編集はカードの「編集」ボタン（またはイベント名クリック）で選択して
-// フォームへスクロール。イベント内の画面の「イベント設定」は
+// フォームへスクロール。イベント内の画面のサイドバーにあるイベント名は
 // ?edit=<eventId> 付きで戻り、この画面が読み取って同じ編集を開く。
+// 削除はカードと編集フォームの両方からできる（下書き・終了のみ）。
 // 将来の管理画面3分割（プッシュ＋消込／予約／クーポン管理）の土台として、
 // まずはイベント設定に絞った単独画面にしている。
 // 同時に仕込めるイベントは3つまで（下書き＋開催中。終了は数えない）で、
@@ -960,16 +961,37 @@ export default function EventAdminPage() {
           </label>
         )}
         {selected ? (
-          <button
-            onClick={handleSave}
-            disabled={formBusy !== null}
-            style={primaryButtonStyle}
-          >
-            <span style={adminButtonContentStyle}>
-              {formBusy === 'save' && <ButtonSpinner />}
-              {adminText(locale, 'saveButton')}
-            </span>
-          </button>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              onClick={handleSave}
+              disabled={formBusy !== null}
+              style={primaryButtonStyle}
+            >
+              <span style={adminButtonContentStyle}>
+                {formBusy === 'save' && <ButtonSpinner />}
+                {adminText(locale, 'saveButton')}
+              </span>
+            </button>
+            {(selected.status === 'draft' || selected.status === 'ended') && (
+              <button
+                type="button"
+                onClick={() => void handleDelete(selected)}
+                disabled={cardBusy?.id === selected.id}
+                style={{
+                  ...secondaryButtonStyle,
+                  border: '1.5px solid #F3B4B4',
+                  color: '#B91C1C',
+                }}
+              >
+                <span style={adminButtonContentStyle}>
+                  {cardBusy?.id === selected.id && cardBusy.action === 'delete' && (
+                    <ButtonSpinner />
+                  )}
+                  {adminText(locale, 'deleteEventButton')}
+                </span>
+              </button>
+            )}
+          </div>
         ) : (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <button

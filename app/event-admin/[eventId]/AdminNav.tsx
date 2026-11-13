@@ -6,7 +6,10 @@
 // plain=true のときはサイドバー用にカード枠なし、通常はスマホ用に
 // 白カードの中にアイコン付きメニューを縦に並べる。
 // 現在地はどちらもバイオレットの塗りつぶしで示す（承認済みモック準拠）。
-// 並び順: イベント設定 → プッシュ＋消込 → 予約配信 → クーポン管理 → 設定。
+// 構造: 先頭は常に「イベント設定」（= 主催者トップ。イベント一覧がTOP）。
+// イベント内の画面では、その下にイベント名（そのイベントの編集フォーム
+// への入口）→ プッシュ＋消込 → 予約配信 → クーポン管理 → 設定 と並び、
+// 今どのイベントの中にいるかがサイドバーで分かるようにする。
 // eventId が無い場合（主催者トップ）はイベント設定のみを現在地として出す。
 // 上限警告バナー（CapWarningBanner）は各画面のコンテンツ側で描画する。
 import type { ReactNode } from 'react';
@@ -32,6 +35,13 @@ function NavIcon({ children }: { children: ReactNode }) {
     </svg>
   );
 }
+
+const eventIcon = (
+  <NavIcon>
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M3 10h18M8 3v4M16 3v4" />
+  </NavIcon>
+);
 
 const settingsIcon = (
   <NavIcon>
@@ -112,25 +122,33 @@ const plainNavStyle: React.CSSProperties = {
 
 export function AdminNav({
   eventId,
+  eventName,
   current,
   locale,
   plain = false,
 }: {
   eventId?: string;
+  /** イベント内の画面で、そのイベント名を編集への入口として出す。 */
+  eventName?: string;
   current: string;
   locale: Locale;
   /** サイドバー内ではカード枠なしにする（AdminShell が指定）。 */
   plain?: boolean;
 }) {
   const items = [
-    {
-      key: '設定',
-      // イベント内の画面からは、そのイベントの編集フォームへ直接戻れるよう
-      // ?edit=<eventId> を付ける（一覧側が読み取って選択＋スクロールする）。
-      href: eventId ? `/event-admin?edit=${eventId}` : '/event-admin',
-      label: adminText(locale, 'navSettings'),
-      icon: settingsIcon,
-    },
+    { key: '設定', href: '/event-admin', label: adminText(locale, 'navSettings'), icon: settingsIcon },
+    ...(eventId && eventName
+      ? [
+          {
+            key: 'イベント名',
+            // そのイベントの編集フォームへ直接戻れる入口（一覧側が
+            // ?edit= を読み取って選択＋スクロールする）。
+            href: `/event-admin?edit=${eventId}`,
+            label: eventName,
+            icon: eventIcon,
+          },
+        ]
+      : []),
     ...(eventId
       ? [
           { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush'), icon: pushIcon },

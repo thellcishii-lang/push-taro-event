@@ -145,6 +145,7 @@ export default function EventCouponAdminPage() {
   const [exhibitors, setExhibitors] = useState<Exhibitor[]>([]);
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [couponCap, setCouponCap] = useState(100);
+  const [eventName, setEventName] = useState('');
   const [exhibitorName, setExhibitorName] = useState('');
   const [exhibitorEmail, setExhibitorEmail] = useState('');
   const [couponForm, setCouponForm] = useState({
@@ -217,6 +218,7 @@ export default function EventCouponAdminPage() {
       setExhibitors(exData.exhibitors ?? []);
       setCoupons(cpData.coupons ?? []);
       if (typeof evData.event?.couponCap === 'number') setCouponCap(evData.event.couponCap);
+      if (typeof evData.event?.name === 'string') setEventName(evData.event.name);
       setLoadMessage('');
     } catch (e) {
       setLoadMessage(e instanceof Error ? e.message : adminText(locale, 'loadFailed'));
@@ -415,7 +417,7 @@ export default function EventCouponAdminPage() {
       email={user.email}
       onLogout={() => void signOut(auth)}
       languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
-      nav={<AdminNav eventId={eventId} current="③" locale={locale} />}
+      nav={<AdminNav eventId={eventId} eventName={eventName} current="③" locale={locale} />}
     >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'couponsPageTitle')}</h1>
       <CapWarningBanner locale={locale} />
