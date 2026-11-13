@@ -7,14 +7,19 @@
 //   予算を使い切ったら途中でも戻り、次の tick で「残り」から自然に再開される
 //   （消えたドキュメントは二度と対象にならないため、状態を持たなくても再開可能で冪等）。
 // - 完了の記録（lastResetDate / finalizedAt）は、全対象が空になってからだけ付ける。
-import { db } from './firebase-admin';
+// - 購読者を消すときは、先にその端末トークンを言語別 FCM トピックから外す。
+//   トピック購読は Firestore の外（FCM 側）にあるため、ドキュメントを消すだけでは
+//   配信の宛先が残り、日次リセット後もプッシュが届き続けてしまう。
+import { db, messaging } from './firebase-admin';
 import {
   EVENT_SUBCOLLECTIONS,
   EventConfig,
   EventResetMode,
   EventSubcollection,
   jstDateString,
+  localeTopic,
 } from './event';
+import { normalizeLocale, type Locale } from './i18n';
 import { updateEvent } from './event-store';
 import {
   buildAndPersistFinalReport,
@@ -79,6 +84,62 @@ async function drainCollection(
   return { deleted, exhausted: true };
 }
 
+/**
+ * 購読者ドキュメント群から、言語別トピック解除用のトークンを組み立てる（純関数）。
+ * トークンを持たないドキュメントは対象外。言語は保存時に正規化されている前提で、
+ * 念のため normalizeLocale で寄せる。
+ */
+export function groupSubscriberTokensByLocale(
+  docs: Array<Record<string, unknown>>,
+): Map<Locale, string[]> {
+  const byLocale = new Map<Locale, string[]>();
+  for (const data of docs) {
+    const token = data.fcmToken;
+    if (typeof token !== 'string' || token.length === 0) continue;
+    const locale = normalizeLocale(data.lang);
+    const list = byLocale.get(locale) ?? [];
+    list.push(token);
+    byLocale.set(locale, list);
+  }
+  return byLocale;
+}
+
+/**
+ * 購読者コレクション専用のチャンク削除。
+ * チャンクごとに「トピック解除 → ドキュメント削除」の順で処理する
+ * （削除が先だとトークンを失い、二度と解除できなくなる）。
+ * トピック解除はベストエフォート: 失敗しても削除は進める
+ * （リセットが止まる方が困る。失敗はログに残す）。
+ */
+async function drainSubscribers(
+  collectionRef: FirebaseFirestore.CollectionReference,
+  eventId: string,
+  budget: number,
+): Promise<DrainResult> {
+  let deleted = 0;
+  while (deleted < budget) {
+    const limit = Math.min(DELETE_CHUNK_SIZE, budget - deleted);
+    const snap = await collectionRef.limit(limit).get();
+    if (snap.empty) return { deleted, exhausted: false };
+    const byLocale = groupSubscriberTokensByLocale(
+      snap.docs.map((doc) => doc.data() as Record<string, unknown>),
+    );
+    for (const [locale, tokens] of byLocale) {
+      try {
+        await messaging.unsubscribeFromTopic(tokens, localeTopic(eventId, locale));
+      } catch (error) {
+        console.warn('[EVENT] FCMトピック解除をスキップ:', error);
+      }
+    }
+    const batch = db.batch();
+    snap.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    deleted += snap.size;
+    if (snap.size < limit) return { deleted, exhausted: false };
+  }
+  return { deleted, exhausted: true };
+}
+
 export interface EventResetResult {
   eventId: string;
   kind: 'daily' | 'finalize';
@@ -106,7 +167,10 @@ async function executeClear(
       .collection('events')
       .doc(event.id)
       .collection(name);
-    const result = await drainCollection(ref, remainingBudget);
+    const result =
+      name === EVENT_SUBCOLLECTIONS.subscribers
+        ? await drainSubscribers(ref, event.id, remainingBudget)
+        : await drainCollection(ref, remainingBudget);
     deletedByCollection[name] = result.deleted;
     remainingBudget -= result.deleted;
     if (result.exhausted) completed = false;
