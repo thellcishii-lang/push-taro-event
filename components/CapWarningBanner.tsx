@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase-client';
 import { adminText } from '@/lib/ui-text';
+import { openHonkeLink } from '@/lib/honke-handoff-client';
 import type { Locale } from '@/lib/i18n';
 import type { CapWarning } from '@/lib/cap-warning';
 
@@ -106,14 +107,20 @@ export function CapWarningBanner({ locale }: { locale: Locale }) {
       <p style={{ fontSize: 13, margin: '8px 0 0', lineHeight: 1.6 }}>
         {adminText(locale, 'capWarningGuidance')}
       </p>
-      <a
-        href={HONKE_SHOP_URL}
-        target="_blank"
-        rel="noreferrer"
-        style={extendButtonStyle}
+      <button
+        type="button"
+        onClick={() =>
+          void openHonkeLink({ purpose: 'account', fallbackUrl: HONKE_SHOP_URL })
+        }
+        style={{
+          ...extendButtonStyle,
+          border: 'none',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
       >
         {adminText(locale, 'capWarningExtendButton')}
-      </a>
+      </button>
     </section>
   );
 }

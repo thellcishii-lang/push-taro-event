@@ -35,6 +35,7 @@ import {
   adminPageTitleStyle,
 } from '@/components/AdminBrand';
 import { adminText, uiText } from '@/lib/ui-text';
+import { openHonkeLink } from '@/lib/honke-handoff-client';
 import { AdminShell } from '@/components/AdminShell';
 import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminNav } from '../AdminNav';
@@ -632,19 +633,24 @@ export default function EventCouponAdminPage() {
               {adminText(locale, 'couponOptionMaxNote')}
             </p>
           ) : (
-            <a
-              href={`${HONKE_COUPON_OPTION_URL}?eventId=${eventId}`}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={() =>
+                void openHonkeLink({
+                  purpose: 'coupon-option',
+                  eventId,
+                  fallbackUrl: `${HONKE_COUPON_OPTION_URL}?eventId=${eventId}`,
+                })
+              }
               style={{
                 ...primaryButtonStyle,
-                display: 'inline-block',
-                textDecoration: 'none',
                 marginTop: 10,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
               }}
             >
               {adminText(locale, 'couponOptionButton')}
-            </a>
+            </button>
           )}
         </div>
         {filterExhibitor && (
