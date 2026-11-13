@@ -1953,6 +1953,24 @@ export const ADMIN_TEXT = {
     zh: '优惠券名额已达上限（500张）',
     ko: '쿠폰 한도가 상한(500개)에 도달했습니다',
   },
+  contractActionsNote: {
+    ja: 'プランの変更・一時アップなどの契約手続きは push-taro.com で行います。',
+    en: 'Plan changes, temporary upgrades and other contract actions are handled on push-taro.com.',
+    zh: '套餐变更、临时升级等合同手续请在 push-taro.com 办理。',
+    ko: '플랜 변경, 일시 업그레이드 등 계약 절차는 push-taro.com에서 진행합니다.',
+  },
+  planChangeButton: {
+    ja: 'プラン変更',
+    en: 'Change plan',
+    zh: '变更套餐',
+    ko: '플랜 변경',
+  },
+  couponPurchaseButton: {
+    ja: 'クーポン追加購入',
+    en: 'Buy coupon slots',
+    zh: '追加购买优惠券',
+    ko: '쿠폰 추가 구매',
+  },
 } as const satisfies Record<string, Record<Locale, string>>;
 
 export type AdminTextKey = keyof typeof ADMIN_TEXT;
