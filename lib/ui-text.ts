@@ -1125,6 +1125,18 @@ export const ADMIN_TEXT = {
     zh: '设为进行中',
     ko: '진행 중으로 변경',
   },
+  editButton: {
+    ja: '編集',
+    en: 'Edit',
+    zh: '编辑',
+    ko: '편집',
+  },
+  deleteEventButton: {
+    ja: 'このイベントを削除',
+    en: 'Delete this event',
+    zh: '删除此活动',
+    ko: '이 이벤트 삭제',
+  },
   publishedMessage: {
     ja: '開催中にしました',
     en: 'The event is now live',

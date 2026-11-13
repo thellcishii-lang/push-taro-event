@@ -165,6 +165,7 @@ export default function EventScheduleAdminPage() {
   const [attachmentName, setAttachmentName] = useState('');
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState('');
+  const [eventName, setEventName] = useState('');
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [message, setMessage] = useState('');
   const [formMessage, setFormMessage] = useState('');
@@ -214,6 +215,21 @@ export default function EventScheduleAdminPage() {
   useEffect(() => {
     if (user) void loadCampaigns();
   }, [user, loadCampaigns]);
+
+  // サイドバーにイベント名を出すためだけの取得（失敗しても画面は止めない）。
+  const loadEventName = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await callApi(`/api/events/${eventId}`);
+      if (typeof data.event?.name === 'string') setEventName(data.event.name);
+    } catch {
+      // ナビに名前が出ないだけ
+    }
+  }, [user, eventId, callApi]);
+
+  useEffect(() => {
+    if (user) void loadEventName();
+  }, [user, loadEventName]);
 
   const handleLogin = async () => {
     setBusy(true);
@@ -344,7 +360,7 @@ export default function EventScheduleAdminPage() {
       email={user.email}
       onLogout={() => void signOut(auth)}
       languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
-      nav={<AdminNav eventId={eventId} current="②" locale={locale} />}
+      nav={<AdminNav eventId={eventId} eventName={eventName} current="②" locale={locale} />}
     >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'schedulePageTitle')}</h1>
       <CapWarningBanner locale={locale} />

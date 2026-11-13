@@ -122,6 +122,7 @@ export default function EventSettingsAdminPage() {
   const [locale, setLocale] = useAdminLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [eventName, setEventName] = useState('');
   const [pdfs, setPdfs] = useState<InfoPdf[]>([]);
   const [linkSlots, setLinkSlots] = useState<Array<{ title: string; url: string }>>([
     { title: '', url: '' },
@@ -184,6 +185,7 @@ export default function EventSettingsAdminPage() {
     if (!user) return;
     try {
       const data = await callApi(`/api/events/${eventId}`);
+      if (typeof data.event?.name === 'string') setEventName(data.event.name);
       const links: Array<{ title: string; url: string }> = data.event?.links ?? [];
       setLinkSlots(
         [0, 1, 2].map((i) => ({
@@ -342,7 +344,7 @@ export default function EventSettingsAdminPage() {
       email={user.email}
       onLogout={() => void signOut(auth)}
       languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
-      nav={<AdminNav eventId={eventId} current="④" locale={locale} />}
+      nav={<AdminNav eventId={eventId} eventName={eventName} current="④" locale={locale} />}
     >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'settingsPageTitle')}</h1>
       <CapWarningBanner locale={locale} />
