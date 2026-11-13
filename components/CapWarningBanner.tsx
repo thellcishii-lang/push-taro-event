@@ -12,7 +12,7 @@ import { adminText } from '@/lib/ui-text';
 import type { Locale } from '@/lib/i18n';
 import type { CapWarning } from '@/lib/cap-warning';
 
-const HONKE_SHOP_URL = 'https://push-taro.com/shop';
+const HONKE_SHOP_URL = 'https://push-taro.com/event-account';
 
 const DATE_LOCALES: Record<Locale, string> = {
   ja: 'ja-JP',

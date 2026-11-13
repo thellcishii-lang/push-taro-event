@@ -10,8 +10,8 @@
 // フォームへスクロール。イベント内の画面のサイドバーにあるイベント名は
 // ?edit=<eventId> 付きで戻り、この画面が読み取って同じ編集を開く。
 // 削除はカードと編集フォームの両方からできる（下書き・終了のみ）。
-// 契約まわりの導線として、一覧の上にプラン変更（本家の契約管理への
-// リンク）、各カードにクーポン追加購入（本家の購入ページへのリンク）を置く。
+// 契約まわりの導線として、一覧の上にプラン変更、各カードにクーポン
+// 追加購入を置く（どちらも本家の EVENT 専用契約ページへのリンク）。
 // 将来の管理画面3分割（プッシュ＋消込／予約／クーポン管理）の土台として、
 // まずはイベント設定に絞った単独画面にしている。
 // 同時に仕込めるイベントは3つまで（下書き＋開催中。終了は数えない）で、
@@ -105,9 +105,9 @@ function toForm(event: EventConfig): EventForm {
 
 const VIOLET = '#6D28D9';
 
-// 契約まわりの手続きは本家（push-taro.com）側にある。クーポン管理画面と同値。
-const HONKE_SHOP_URL = 'https://push-taro.com/shop';
-const HONKE_COUPON_OPTION_URL = 'https://push-taro.com/event-option';
+// 契約まわりの手続きは本家の EVENT 専用契約ページ（push-taro.com/event-account）。
+const HONKE_SHOP_URL = 'https://push-taro.com/event-account';
+const HONKE_COUPON_OPTION_URL = 'https://push-taro.com/event-account';
 const COUPON_OPTION_MAX_CAP = 500;
 
 const containerStyle: React.CSSProperties = {
@@ -821,7 +821,7 @@ export default function EventAdminPage() {
                   </button>
                   {event.couponCap < COUPON_OPTION_MAX_CAP && (
                     <a
-                      href={`${HONKE_COUPON_OPTION_URL}?eventId=${event.id}`}
+                      href={HONKE_COUPON_OPTION_URL}
                       target="_blank"
                       rel="noreferrer"
                       style={cardActionOutlineStyle}
