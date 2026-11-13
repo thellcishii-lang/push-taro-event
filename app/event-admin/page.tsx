@@ -41,6 +41,7 @@ import { CapWarningBanner } from '@/components/CapWarningBanner';
 import { AdminShell } from '@/components/AdminShell';
 import { VisitorQr } from '@/components/VisitorQr';
 import { AdminNav } from './[eventId]/AdminNav';
+import { openHonkeLink } from '@/lib/honke-handoff-client';
 import {
   ADMIN_CARD_BORDER,
   ADMIN_CARD_SHADOW,
@@ -654,19 +655,20 @@ export default function EventAdminPage() {
         <p style={{ fontSize: 13, color: '#475569', margin: 0 }}>
           {adminText(locale, 'contractActionsNote')}
         </p>
-        <a
-          href={HONKE_SHOP_URL}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          onClick={() =>
+            void openHonkeLink({ purpose: 'account', fallbackUrl: HONKE_SHOP_URL })
+          }
           style={{
             ...primaryButtonStyle,
-            display: 'inline-block',
-            textDecoration: 'none',
             whiteSpace: 'nowrap',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
           }}
         >
           {adminText(locale, 'planChangeButton')}
-        </a>
+        </button>
       </section>
 
       <section style={{ marginTop: 22 }}>
@@ -820,14 +822,23 @@ export default function EventAdminPage() {
                     {adminText(locale, 'editButton')}
                   </button>
                   {event.couponCap < COUPON_OPTION_MAX_CAP && (
-                    <a
-                      href={HONKE_COUPON_OPTION_URL}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={cardActionOutlineStyle}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void openHonkeLink({
+                          purpose: 'coupon-option',
+                          eventId: event.id,
+                          fallbackUrl: HONKE_COUPON_OPTION_URL,
+                        })
+                      }
+                      style={{
+                        ...cardActionOutlineStyle,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
                     >
                       {adminText(locale, 'couponPurchaseButton')}
-                    </a>
+                    </button>
                   )}
                 </div>
                 {(event.status === 'draft' || event.status === 'ended') && (
