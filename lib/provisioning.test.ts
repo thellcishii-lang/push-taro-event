@@ -98,6 +98,26 @@ describe('buildProvisioningUpdate', () => {
       );
     });
   });
+
+  describe('課金オプション（billingOptionEnabled）', () => {
+    it('boolean が送られれば含める（true / false 両方）', () => {
+      expect(
+        buildProvisioningUpdate({ companyName: '', billingOptionEnabled: true }),
+      ).toEqual({ billingOptionEnabled: true });
+      expect(
+        buildProvisioningUpdate({ companyName: '', billingOptionEnabled: false }),
+      ).toEqual({ billingOptionEnabled: false });
+    });
+    it('送られなければ含めない（既存値を変えない）', () => {
+      expect(buildProvisioningUpdate({ companyName: '' })).toEqual({});
+      expect(
+        buildProvisioningUpdate({
+          companyName: '',
+          billingOptionEnabled: undefined,
+        }),
+      ).toEqual({});
+    });
+  });
 });
 
 const createInput = (overrides: Partial<ProvisionOrganizerInput> = {}): ProvisionOrganizerInput => ({

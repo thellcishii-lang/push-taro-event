@@ -344,7 +344,7 @@ export default function EventSettingsAdminPage() {
       email={user.email}
       onLogout={() => void signOut(auth)}
       languageSelect={<AdminLanguageSelect locale={locale} onChange={setLocale} />}
-      nav={<AdminNav eventId={eventId} eventName={eventName} current="④" locale={locale} />}
+      nav={<AdminNav eventId={eventId} eventName={eventName} current="⑤" locale={locale} />}
     >
       <h1 style={adminPageTitleStyle}>{adminText(locale, 'settingsPageTitle')}</h1>
       <CapWarningBanner locale={locale} />

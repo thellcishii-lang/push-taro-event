@@ -6,6 +6,15 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    // 出店者課金オプションの Stripe 設定（organizers/{contractId}/billing/*）
+    // には主催者の秘密情報（APIキー等）が入る。クライアントからの直接
+    // アクセスは一切認めず、読み書きはサーバーAPI（Admin SDK）経由のみ。
+    // 下の catch-all と同じく admin クレーム保持者（運営）だけが対象で、
+    // 主催者自身のアカウントでも直接は読めない。
+    match /organizers/{contractId}/billing/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
     // Production data is normally accessed through server APIs. Direct client
     // access is reserved for the authenticated administrator test console.
     match /{document=**} {

@@ -45,7 +45,12 @@ export async function PATCH(
     return NextResponse.json({ error: 'リクエスト形式が不正です' }, { status: 400 });
   }
 
-  const patch: { subscriberCap?: number; couponCap?: number; status?: OrganizerStatus } = {};
+  const patch: {
+    subscriberCap?: number;
+    couponCap?: number;
+    status?: OrganizerStatus;
+    billingOptionEnabled?: boolean;
+  } = {};
   for (const field of ['subscriberCap', 'couponCap'] as const) {
     const value = body[field];
     if (value !== undefined) {
@@ -66,6 +71,15 @@ export async function PATCH(
       );
     }
     patch.status = body.status;
+  }
+  if (body.billingOptionEnabled !== undefined) {
+    if (typeof body.billingOptionEnabled !== 'boolean') {
+      return NextResponse.json(
+        { error: 'billingOptionEnabled は真偽値で指定してください' },
+        { status: 400 },
+      );
+    }
+    patch.billingOptionEnabled = body.billingOptionEnabled;
   }
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: '変更項目がありません' }, { status: 400 });

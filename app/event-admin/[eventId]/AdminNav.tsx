@@ -8,7 +8,7 @@
 // 現在地はどちらもバイオレットの塗りつぶしで示す（承認済みモック準拠）。
 // 構造: 先頭は常に「イベント設定」（= 主催者トップ。イベント一覧がTOP）。
 // イベント内の画面では、その下にイベント名（そのイベントの編集フォーム
-// への入口）→ プッシュ＋消込 → 予約配信 → クーポン管理 → 設定 と並び、
+// への入口）→ プッシュ＋消込 → 予約配信 → クーポン管理 → 課金 → 設定 と並び、
 // 今どのイベントの中にいるかがサイドバーで分かるようにする。
 // eventId が無い場合（主催者トップ）はイベント設定のみを現在地として出す。
 // 上限警告バナー（CapWarningBanner）は各画面のコンテンツ側で描画する。
@@ -68,6 +68,13 @@ const couponsIcon = (
   <NavIcon>
     <path d="M3 9V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a3 3 0 0 0 0 6v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a3 3 0 0 0 0-6z" />
     <path d="M13 5v2M13 11v2M13 17v2" />
+  </NavIcon>
+);
+
+const billingIcon = (
+  <NavIcon>
+    <rect x="3" y="6" width="18" height="13" rx="2" />
+    <path d="M3 10h18M7 15h4" />
   </NavIcon>
 );
 
@@ -154,7 +161,10 @@ export function AdminNav({
           { key: '①', href: `/event-admin/${eventId}/push`, label: adminText(locale, 'navPush'), icon: pushIcon },
           { key: '②', href: `/event-admin/${eventId}/schedule`, label: adminText(locale, 'navSchedule'), icon: scheduleIcon },
           { key: '③', href: `/event-admin/${eventId}/coupons`, label: adminText(locale, 'navCoupons'), icon: couponsIcon },
-          { key: '④', href: `/event-admin/${eventId}/settings`, label: adminText(locale, 'navConfig'), icon: gearIcon },
+          // 課金は別料金オプション。ナビは常時出し、オプション OFF の
+          // 契約では課金ページ側で案内文を出す（API が 404 を返す）。
+          { key: '④', href: `/event-admin/${eventId}/billing`, label: adminText(locale, 'navBilling'), icon: billingIcon },
+          { key: '⑤', href: `/event-admin/${eventId}/settings`, label: adminText(locale, 'navConfig'), icon: gearIcon },
         ]
       : []),
   ];
