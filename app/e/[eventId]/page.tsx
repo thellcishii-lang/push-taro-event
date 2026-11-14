@@ -234,6 +234,20 @@ export default function EventVisitorPage() {
   // カタログで展開中の出店者グループ（検索中は全グループ展開扱い）
   const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
 
+  // iPhone で「ホーム画面に追加」したときに Web アプリとして開かれるよう、
+  // このイベント専用の manifest（start_url = このページ）を差し込む。
+  // manifest が無いと新しい iOS では Safari のブックマーク扱いになり、
+  // スタンドアローン判定が false のまま通知登録が止まってしまう。
+  useEffect(() => {
+    const link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = `/api/manifest/event/${eventId}`;
+    document.head.appendChild(link);
+    return () => {
+      link.remove();
+    };
+  }, [eventId]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
