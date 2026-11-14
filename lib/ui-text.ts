@@ -1041,6 +1041,12 @@ export const ADMIN_TEXT = {
     zh: '订阅者上限（合同额度）',
     ko: '구독자 상한(계약 한도)',
   },
+  currentSubscribersLabel: {
+    ja: '現在の購読者数',
+    en: 'Current subscribers',
+    zh: '当前订阅者数',
+    ko: '현재 구독자 수',
+  },
   peopleSuffix: {
     ja: '人',
     en: ' people',

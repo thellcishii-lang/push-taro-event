@@ -300,3 +300,20 @@ export function isFinalizationDue(
   if (event.finalizedAt) return false;
   return jstDateString(now) > event.endDate;
 }
+
+export type SubscriberUsageLevel = 'normal' | 'warning' | 'full';
+
+/**
+ * 購読者枠の使用状況（イベントカードのインジケーター用）。
+ * percent は 0–100 に丸め、level は 90%以上で warning、上限到達で full。
+ */
+export function subscriberUsage(
+  count: number,
+  cap: number,
+): { percent: number; level: SubscriberUsageLevel } {
+  if (cap <= 0) return { percent: 0, level: 'normal' };
+  const ratio = count / cap;
+  const percent = Math.min(100, Math.round(ratio * 100));
+  const level: SubscriberUsageLevel = ratio >= 1 ? 'full' : ratio >= 0.9 ? 'warning' : 'normal';
+  return { percent, level };
+}

@@ -11,6 +11,7 @@ import {
   isValidResetTime,
   receivesCapsPropagation,
   resolveCreateStatus,
+  subscriberUsage,
   jstDateString,
   jstTimeString,
 } from './event';
@@ -188,5 +189,26 @@ describe('削除できるイベント（canDeleteEvent）', () => {
 
   it('開催中は削除できない（先に終了させる運用）', () => {
     expect(canDeleteEvent(ev('live'))).toBe(false);
+  });
+});
+
+describe('subscriberUsage', () => {
+  it('通常域は percent を丸めて normal', () => {
+    expect(subscriberUsage(250, 1000)).toEqual({ percent: 25, level: 'normal' });
+    expect(subscriberUsage(0, 50000)).toEqual({ percent: 0, level: 'normal' });
+  });
+
+  it('90%以上で warning', () => {
+    expect(subscriberUsage(900, 1000)).toEqual({ percent: 90, level: 'warning' });
+    expect(subscriberUsage(899, 1000).level).toBe('normal');
+  });
+
+  it('上限到達で full、percent は 100 で頭打ち', () => {
+    expect(subscriberUsage(1000, 1000)).toEqual({ percent: 100, level: 'full' });
+    expect(subscriberUsage(1500, 1000)).toEqual({ percent: 100, level: 'full' });
+  });
+
+  it('枠が 0 以下なら 0% normal', () => {
+    expect(subscriberUsage(10, 0)).toEqual({ percent: 0, level: 'normal' });
   });
 });

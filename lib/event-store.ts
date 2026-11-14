@@ -16,6 +16,7 @@ import {
   EventConfig,
   MAX_COUPONS_PER_EVENT,
   isValidResetTime,
+  EVENT_SUBCOLLECTIONS,
   normalizeEventLinks,
   parseEventLinks,
   receivesCapsPropagation,
@@ -109,6 +110,37 @@ export async function listEventsByOwner(ownerUid: string): Promise<EventConfig[]
   return snap.docs
     .map((doc) => toEventConfig(doc.id, doc.data()))
     .sort((a, b) => a.startDate.localeCompare(b.startDate));
+}
+
+export interface EventWithSubscriberCount extends EventConfig {
+  subscriberCount: number;
+}
+
+/** イベントの現在の購読者数（集計クエリなので大きなコレクションでも軽い）。 */
+export async function countEventSubscribers(eventId: string): Promise<number> {
+  const snap = await db
+    .collection(EVENTS_COLLECTION)
+    .doc(eventId)
+    .collection(EVENT_SUBCOLLECTIONS.subscribers)
+    .count()
+    .get();
+  return snap.data().count;
+}
+
+/**
+ * 主催者のイベント一覧に現在の購読者数を付ける（一覧カード表示用）。
+ * 数えられないイベントがあっても一覧自体は出す（そのイベントは 0 として扱う）。
+ */
+export async function listEventsByOwnerWithSubscriberCounts(
+  ownerUid: string,
+): Promise<EventWithSubscriberCount[]> {
+  const events = await listEventsByOwner(ownerUid);
+  return Promise.all(
+    events.map(async (event) => ({
+      ...event,
+      subscriberCount: await countEventSubscribers(event.id).catch(() => 0),
+    })),
+  );
 }
 
 /** スケジューラが「開催中イベント」を拾うための一覧。件数は最大でも数十件想定。 */

@@ -59,6 +59,7 @@ import {
   MAX_CONCURRENT_EVENTS,
   canCreateAnotherEvent,
   countConcurrentEvents,
+  subscriberUsage,
 } from '@/lib/event';
 import { LOCALE_LABELS, SUPPORTED_LOCALES, Locale } from '@/lib/i18n';
 import { adminText, uiText } from '@/lib/ui-text';
@@ -279,7 +280,7 @@ export default function EventAdminPage() {
   const [locale, setLocale] = useAdminLocale();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [events, setEvents] = useState<EventConfig[]>([]);
+  const [events, setEvents] = useState<(EventConfig & { subscriberCount?: number })[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<EventForm>(emptyForm);
   const [message, setMessage] = useState('');
@@ -797,6 +798,56 @@ export default function EventAdminPage() {
                     {Number(event.subscriberCap).toLocaleString('ja-JP')}
                     {adminText(locale, 'peopleSuffix')}
                   </div>
+                  {typeof event.subscriberCount === 'number' &&
+                    (() => {
+                      const usage = subscriberUsage(event.subscriberCount, event.subscriberCap);
+                      const barColor =
+                        usage.level === 'full'
+                          ? '#DC2626'
+                          : usage.level === 'warning'
+                            ? '#F59E0B'
+                            : '#7C3AED';
+                      return (
+                        <div style={{ marginTop: 10 }}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'baseline',
+                              gap: 8,
+                              fontSize: 13,
+                              color: '#475569',
+                            }}
+                          >
+                            <span style={{ fontWeight: 600 }}>
+                              {adminText(locale, 'currentSubscribersLabel')}
+                            </span>
+                            <span>
+                              {event.subscriberCount.toLocaleString('ja-JP')}
+                              {adminText(locale, 'peopleSuffix')}（{usage.percent}%）
+                            </span>
+                          </div>
+                          <div
+                            style={{
+                              height: 8,
+                              borderRadius: 999,
+                              backgroundColor: '#EDE9FE',
+                              overflow: 'hidden',
+                              marginTop: 6,
+                            }}
+                          >
+                            <div
+                              style={{
+                                height: '100%',
+                                width: `${usage.percent}%`,
+                                backgroundColor: barColor,
+                                borderRadius: 999,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })()}
                 </div>
                 <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <a href={`/event-admin/${event.id}/push`} style={cardActionSolidStyle}>

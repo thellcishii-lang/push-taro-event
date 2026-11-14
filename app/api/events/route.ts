@@ -2,7 +2,11 @@
 // 主催者向けイベント管理 API: 一覧取得と新規作成（自分のイベントだけ）。
 import { NextResponse } from 'next/server';
 import { getUidFromRequest, passwordChangeBlock } from '@/lib/event-auth';
-import { createEvent, listEventsByOwner } from '@/lib/event-store';
+import {
+  createEvent,
+  listEventsByOwner,
+  listEventsByOwnerWithSubscriberCounts,
+} from '@/lib/event-store';
 import {
   EventResetMode,
   canCreateAnotherEvent,
@@ -20,7 +24,7 @@ export async function GET(request: Request) {
   if (!uid) {
     return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
   }
-  const events = await listEventsByOwner(uid);
+  const events = await listEventsByOwnerWithSubscriberCounts(uid);
   return NextResponse.json({ events });
 }
 
