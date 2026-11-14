@@ -27,6 +27,8 @@ import {
   snapshotDailyStats,
 } from './event-report';
 import { trySendFinalReportEmail } from './event-report-send';
+import { findOrganizerByOwnerUid } from './organizers';
+import { cancelEventSubscriptionsForFinalization } from './event-billing';
 
 export { EVENT_SUBCOLLECTIONS };
 export type { EventSubcollection };
@@ -146,6 +148,11 @@ export interface EventResetResult {
   /** 全対象を消し終えたかどうか。false の場合は次の tick で継続される */
   completed: boolean;
   deletedByCollection: Partial<Record<EventSubcollection, number>>;
+  /**
+   * 終了処理での出店者課金の自動解約の結果（終了処理のときだけ）。
+   * オプション OFF・対象なしの場合は undefined。
+   */
+  billingAutoCancel?: { canceledCount: number; failedCount: number };
 }
 
 async function executeClear(
@@ -208,7 +215,9 @@ export async function executeEventReset(
  *    失敗したら例外となり削除しない。バックアップは期限を過ぎたら tick が自動消去する。
  * 3. レポートのメール送信を試みる。失敗してもレポートとバックアップは保存済みなので、
  *    tick の再送スイープと管理画面からの再送で何度でも送り直せる（削除はブロックしない）。
- * 4. 電話番号を含む全対象を削除する。消し終えた場合のみ finalizedAt と status='ended' を記録する。
+ * 4. 出店者課金オプションが有効なら、そのイベントの月額サブスクリプションを
+ *    主催者の Stripe で自動解約する（ベストエフォート。失敗しても続行する）。
+ * 5. 電話番号を含む全対象を削除する。消し終えた場合のみ finalizedAt と status='ended' を記録する。
  * （リセットより優先して呼ばれる前提）
  */
 export async function executeEventFinalization(
@@ -219,6 +228,37 @@ export async function executeEventFinalization(
   const report = await buildAndPersistFinalReport(event, now);
   await ensureReportBackup(report, event.backupRetentionDays, now);
   await trySendFinalReportEmail(report);
+
+  // 出店者課金オプション: 削除の前に、そのイベントの有効な月額
+  // サブスクリプションを主催者の Stripe で自動解約する（イベントの
+  // 記録が消えた後も請求だけが残り続ける事故を防ぐ）。対象はこの
+  // イベントの分だけ。ベストエフォート: 失敗しても終了処理自体は
+  // 止めず、失敗件数を結果に残す。
+  let billingAutoCancel: EventResetResult['billingAutoCancel'];
+  try {
+    const organizer = await findOrganizerByOwnerUid(event.ownerUid);
+    if (organizer?.billingOptionEnabled) {
+      const cancelResult = await cancelEventSubscriptionsForFinalization(
+        db,
+        organizer.contractId,
+        event.id,
+      );
+      billingAutoCancel = {
+        canceledCount: cancelResult.canceledCount,
+        failedCount: cancelResult.failedCount,
+      };
+      if (cancelResult.errors.length > 0) {
+        console.error(
+          '[EVENT] 終了時の出店者課金の自動解約で失敗:',
+          event.id,
+          cancelResult.errors,
+        );
+      }
+    }
+  } catch (error) {
+    console.error('[EVENT] 終了時の出店者課金の自動解約に失敗:', event.id, error);
+  }
+
   const result = await executeClear(event, 'finalize', budget);
   if (result.completed) {
     await updateEvent(event.id, {
@@ -226,5 +266,5 @@ export async function executeEventFinalization(
       finalizedAt: now.toISOString(),
     });
   }
-  return result;
+  return billingAutoCancel ? { ...result, billingAutoCancel } : result;
 }

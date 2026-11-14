@@ -37,6 +37,15 @@ export interface EventExhibitor {
   hasAccessCode: boolean;
   /** 表示言語（個人の選択）。未設定ならイベントのデフォルト言語 */
   lang: Locale;
+  /**
+   * 出店者課金オプションの未払い確定による掲載停止フラグ。
+   * ドキュメントのトップレベル項目 `billingSuspended` で管理する
+   * （lib/event-billing.ts が Webhook 経由で立て下げする）。
+   * 未設定（undefined）の旧ドキュメントは停止でない扱い。
+   * 停止中でも出店者ログイン・取得済みクーポンの消込は止めない。
+   * 止まるのは来場者カタログへの掲載だけ。
+   */
+  billingSuspended: boolean;
 }
 
 function mapExhibitor(
@@ -51,6 +60,7 @@ function mapExhibitor(
     hasAccessCode:
       typeof data.accessCode === 'string' && data.accessCode.length > 0,
     lang: normalizeLocale(data.lang),
+    billingSuspended: data.billingSuspended === true,
   };
 }
 
@@ -155,6 +165,37 @@ export async function updateExhibitorLanguage(
     .update({ lang });
 }
 
+/**
+ * 出店者の掲載停止フラグを立て下げする（出店者課金オプション専用。
+ * 呼び出しは lib/event-billing.ts の Webhook 適用と終了時処理だけ）。
+ */
+export async function setExhibitorBillingSuspended(
+  eventId: string,
+  exhibitorId: string,
+  suspended: boolean,
+): Promise<void> {
+  await eventRef(eventId)
+    .collection(EVENT_EXHIBITORS_COLLECTION)
+    .doc(exhibitorId)
+    .update({ billingSuspended: suspended });
+}
+
+/**
+ * 来場者カタログの可視判定（純粋関数・テスト対象）:
+ * 掲載停止中（billingSuspended）の出店者のクーポンは来場者に渡さない。
+ * 取得済みクーポン（claims）の表示・消込はここでは扱わない（止めない）。
+ */
+export function visibleCatalogCoupons(
+  coupons: EventCoupon[],
+  exhibitors: Array<Pick<EventExhibitor, 'id' | 'billingSuspended'>>,
+): EventCoupon[] {
+  const suspendedIds = new Set(
+    exhibitors.filter((e) => e.billingSuspended).map((e) => e.id),
+  );
+  if (suspendedIds.size === 0) return coupons;
+  return coupons.filter((coupon) => !suspendedIds.has(coupon.exhibitorId));
+}
+
 export async function createExhibitor(
   eventId: string,
   input: { name: string; email?: string | null; lang?: Locale },
@@ -170,6 +211,7 @@ export async function createExhibitor(
     email,
     hasAccessCode: false,
     lang: resolveLocale(input.lang, event?.defaultLocale),
+    billingSuspended: false,
   };
   // hasAccessCode はドキュメントの accessCode フィールドから導く表示用の値で、
   // 保存するのは実フィールド（email / lang）だけ。

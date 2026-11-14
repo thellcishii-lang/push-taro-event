@@ -74,6 +74,10 @@ export async function POST(request: Request) {
         ? body.restoredSubscriberCap
         : undefined,
     agencyCode: typeof body.agencyCode === 'string' ? body.agencyCode : null,
+    // 出店者課金オプションの任意項目。型だけ通して、反映可否は
+    // lib/provisioning.ts 側の判定に任せる（boolean 以外・未送信は既存値を変えない）。
+    billingOptionEnabled:
+      typeof body.billingOptionEnabled === 'boolean' ? body.billingOptionEnabled : undefined,
   });
 
   if (!result.ok) {

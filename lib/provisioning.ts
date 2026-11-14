@@ -43,6 +43,12 @@ export interface ProvisionOrganizerInput {
   /** 一時上げの期限後に戻る購読者枠。任意項目（意味は上と同じ）。 */
   restoredSubscriberCap?: number | null;
   agencyCode?: string | null;
+  /**
+   * 出店者課金オプションの ON/OFF。任意項目:
+   * boolean が送られた場合だけ反映し、送られなければ既存値を変えない。
+   * boolean 以外は無視する。
+   */
+  billingOptionEnabled?: boolean;
 }
 
 export type ProvisionOrganizerResult =
@@ -107,6 +113,7 @@ export function buildProvisioningUpdate(
     | 'couponCap'
     | 'tempSubscriberCapUntil'
     | 'restoredSubscriberCap'
+    | 'billingOptionEnabled'
   >,
 ): ProvisioningProfilePatch {
   const patch: ProvisioningProfilePatch = {};
@@ -125,6 +132,10 @@ export function buildProvisioningUpdate(
   if (tempUntil !== undefined) patch.tempSubscriberCapUntil = tempUntil;
   const restoredCap = sanitizeRestoredSubscriberCap(input.restoredSubscriberCap);
   if (restoredCap !== undefined) patch.restoredSubscriberCap = restoredCap;
+  // 出店者課金オプションは boolean が送られた場合だけ反映する。
+  if (typeof input.billingOptionEnabled === 'boolean') {
+    patch.billingOptionEnabled = input.billingOptionEnabled;
+  }
   return patch;
 }
 
@@ -248,6 +259,8 @@ export async function provisionOrganizer(
     restoredSubscriberCap:
       sanitizeRestoredSubscriberCap(input.restoredSubscriberCap) ?? null,
     agencyCode: input.agencyCode ?? null,
+    // 出店者課金オプションは boolean のときだけ有効として保存（それ以外は無効）。
+    billingOptionEnabled: input.billingOptionEnabled === true,
     // 初期パスワードは初回ログインで必ず変更させる。
     mustChangePassword: true,
   };
