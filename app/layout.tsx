@@ -30,6 +30,11 @@ export const metadata: Metadata = {
     statusBarStyle: 'default',
     title: 'Push-taro.EVENT',
   },
+  // Next が出すのは標準名（mobile-web-app-capable）のみで、iOS が見る
+  // apple- 前置きの指定が live の head に無いため、明示的に追加する。
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
