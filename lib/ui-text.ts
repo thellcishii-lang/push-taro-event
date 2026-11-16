@@ -867,6 +867,24 @@ export const ADMIN_TEXT = {
     zh: '活动设置',
     ko: '이벤트 설정',
   },
+  navDashboard: {
+    ja: 'ダッシュボード',
+    en: 'Dashboard',
+    zh: '仪表盘',
+    ko: '대시보드',
+  },
+  openDashboardButton: {
+    ja: 'ダッシュボードを開く',
+    en: 'Open dashboard',
+    zh: '打开仪表盘',
+    ko: '대시보드 열기',
+  },
+  dashboardExhibitorsLabel: {
+    ja: '出店者',
+    en: 'Exhibitors',
+    zh: '参展商',
+    ko: '출점자',
+  },
   billingPageTitle: {
     ja: '出店者課金',
     en: 'Exhibitor billing',
@@ -1432,10 +1450,10 @@ export const ADMIN_TEXT = {
     ko: '진행 중으로 변경',
   },
   editButton: {
-    ja: '編集',
-    en: 'Edit',
-    zh: '编辑',
-    ko: '편집',
+    ja: 'イベント編集',
+    en: 'Edit event',
+    zh: '编辑活动',
+    ko: '이벤트 편집',
   },
   deleteEventButton: {
     ja: 'このイベントを削除',
