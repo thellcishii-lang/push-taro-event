@@ -4,14 +4,15 @@
 // Push-taro EVENT の主催者向けイベント設定画面。
 // イベントの一覧・作成・編集（開催期間／リセット方式／リセット時刻／上限／バックアップ保持日数／状態）。
 // 作成は「下書きで作成」と「登録（開催中として作成）」の2ボタンで状態を明示する。
-// 下書きはカードの「開催中にする」から公開でき、下書きと終了はカードから
-// 削除できる（開催中は削除不可。削除は DELETE /api/events/[eventId]）。
-// 編集はカードの「編集」ボタン（またはイベント名クリック）で選択して
-// フォームへスクロール。イベント内の画面のサイドバーにあるイベント名は
-// ?edit=<eventId> 付きで戻り、この画面が読み取って同じ編集を開く。
-// 削除はカードと編集フォームの両方からできる（下書き・終了のみ）。
-// 契約まわりの導線として、一覧の上にプラン変更、各カードにクーポン
-// 追加購入を置く（どちらも本家の EVENT 専用契約ページへのリンク）。
+// 一覧のカードのアクションは「ダッシュボードを開く」「イベント編集」と
+// 来場者用QRコードだけに絞る（イベント名クリックもダッシュボードへ）。
+// イベントの中の操作（プッシュ・クーポン追加購入等）はダッシュボードと
+// 左サイドバーのイベントメニューから入る。
+// 編集はカードの「イベント編集」ボタンで選択してフォームへスクロール。
+// 公開（開催中にする）は編集フォームの状態変更から、削除は編集フォームから
+// できる（下書き・終了のみ。削除は DELETE /api/events/[eventId]）。
+// 契約まわりの導線として、一覧の上にプラン変更を置く
+// （本家の EVENT 専用契約ページへのリンク）。
 // 将来の管理画面3分割（プッシュ＋消込／予約／クーポン管理）の土台として、
 // まずはイベント設定に絞った単独画面にしている。
 // 同時に仕込めるイベントは3つまで（下書き＋開催中。終了は数えない）で、
@@ -109,8 +110,6 @@ const VIOLET = '#6D28D9';
 
 // 契約まわりの手続きは本家の EVENT 専用契約ページ（push-taro.com/event-account）。
 const HONKE_SHOP_URL = 'https://push-taro.com/event-account';
-const HONKE_COUPON_OPTION_URL = 'https://push-taro.com/event-account';
-const COUPON_OPTION_MAX_CAP = 500;
 
 const containerStyle: React.CSSProperties = {
   padding: '20px 16px 48px',
@@ -210,15 +209,6 @@ const cardActionButtonStyle: React.CSSProperties = {
   fontFamily: 'inherit',
 };
 
-const cardActionDangerStyle: React.CSSProperties = {
-  ...cardActionBaseStyle,
-  backgroundColor: '#ffffff',
-  border: '1.5px solid #F3B4B4',
-  color: '#B91C1C',
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-};
-
 const secondaryButtonStyle: React.CSSProperties = {
   padding: '12px 22px',
   fontWeight: 700,
@@ -255,25 +245,6 @@ function statusBadgeColors(status: EventConfig['status']): {
   return { bg: '#ECECF1', color: '#55565F', dot: '#9CA3AF' };
 }
 
-function PlaneIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M22 2 11 13" />
-      <path d="M22 2 15 22l-4-9-9-4z" />
-    </svg>
-  );
-}
-
 export default function EventAdminPage() {
   const [user, setUser] = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -288,9 +259,8 @@ export default function EventAdminPage() {
   const [busy, setBusy] = useState(false);
   // イベントフォームの送信中状態（保存／下書きで作成／登録で作成を区別する）。
   const [formBusy, setFormBusy] = useState<null | 'save' | 'draft' | 'live'>(null);
-  // カード上のアクション（開催中にする／削除）の処理中と結果表示。
-  const [cardBusy, setCardBusy] = useState<{ id: string; action: 'publish' | 'delete' } | null>(null);
-  const [cardFeedback, setCardFeedback] = useState<{ id: string; text: string; error: boolean } | null>(null);
+  // 編集フォームの削除ボタンの処理中状態。
+  const [cardBusy, setCardBusy] = useState<{ id: string; action: 'delete' } | null>(null);
   // 初回パスワード変更ゲートの状態（unknown の間は管理画面を出さない）。
   const [passwordGate, setPasswordGate] = useState<'unknown' | 'required' | 'clear'>('unknown');
   const [newPassword, setNewPassword] = useState('');
@@ -364,8 +334,8 @@ export default function EventAdminPage() {
     if (user && passwordGate === 'clear') void loadEvents();
   }, [user, passwordGate, loadEvents]);
 
-  // 編集フォーム（#event-form）までスクロールする。カードの「編集」と
-  // イベント名クリック、?edit= ディープリンクで共用する。
+  // 編集フォーム（#event-form）までスクロールする。カードの
+  // 「イベント編集」ボタンと ?edit= ディープリンクで共用する。
   const scrollToEventForm = useCallback(() => {
     requestAnimationFrame(() => {
       document
@@ -374,8 +344,8 @@ export default function EventAdminPage() {
     });
   }, []);
 
-  // イベント内の画面の「イベント設定」から ?edit=<eventId> で戻ってきたら、
-  // そのイベントを選択して編集フォームを開く（初回のみ）。
+  // ?edit=<eventId> 付きで開かれたら、そのイベントを選択して
+  // 編集フォームを開く（初回のみ）。
   const editParamApplied = useRef(false);
   useEffect(() => {
     if (editParamApplied.current || events.length === 0) return;
@@ -488,42 +458,13 @@ export default function EventAdminPage() {
     }
   };
 
-  // 下書きカードの「開催中にする」。既存の更新 API で状態だけを変え、
-  // 成功したらカード表示を即時に切り替える。失敗理由はカードの近くに出す。
-  const handlePublish = async (event: EventConfig) => {
-    setCardBusy({ id: event.id, action: 'publish' });
-    setCardFeedback(null);
-    try {
-      const data = await callApi(`/api/events/${event.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'live' }),
-      });
-      setEvents((prev) =>
-        prev.map((e) => (e.id === event.id ? (data.event as EventConfig) : e)),
-      );
-      setCardFeedback({
-        id: event.id,
-        text: adminText(locale, 'publishedMessage'),
-        error: false,
-      });
-    } catch (e) {
-      setCardFeedback({
-        id: event.id,
-        text: e instanceof Error ? e.message : adminText(locale, 'publishFailed'),
-        error: true,
-      });
-    } finally {
-      setCardBusy(null);
-    }
-  };
-
-  // 下書き・終了イベントの削除。確認ダイアログ（イベント名＋復元不可の明示）を
-  // 挟み、成功したら一覧から取り除く。編集中のイベントを消した場合は
-  // フォームを新規作成の状態に戻す。
+  // 下書き・終了イベントの削除（編集フォームのボタンから）。
+  // 確認ダイアログ（イベント名＋復元不可の明示）を挟み、成功したら
+  // 一覧から取り除いてフォームを新規作成の状態に戻す。
   const handleDelete = async (event: EventConfig) => {
     if (!window.confirm(adminText(locale, 'deleteConfirm', { name: event.name }))) return;
     setCardBusy({ id: event.id, action: 'delete' });
-    setCardFeedback(null);
+    setMessage('');
     try {
       await callApi(`/api/events/${event.id}`, { method: 'DELETE' });
       setEvents((prev) => prev.filter((e) => e.id !== event.id));
@@ -533,11 +474,7 @@ export default function EventAdminPage() {
         setMessage(adminText(locale, 'deletedMessage'));
       }
     } catch (e) {
-      setCardFeedback({
-        id: event.id,
-        text: e instanceof Error ? e.message : adminText(locale, 'deleteFailed'),
-        error: true,
-      });
+      setMessage(e instanceof Error ? e.message : adminText(locale, 'deleteFailed'));
     } finally {
       setCardBusy(null);
     }
@@ -752,27 +689,18 @@ export default function EventAdminPage() {
                   />
                   {statusText(event.status)}
                 </span>
-                <button
-                  onClick={() => {
-                    setSelectedId(event.id);
-                    setForm(toForm(event));
-                    setMessage('');
-                    scrollToEventForm();
-                  }}
+                <a
+                  href={`/event-admin/${event.id}`}
                   style={{
                     fontWeight: 800,
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
                     fontSize: 19,
                     color: '#0f172a',
-                    padding: 0,
-                    textAlign: 'left',
+                    textDecoration: 'none',
                     letterSpacing: -0.3,
                   }}
                 >
                   {event.name}
-                </button>
+                </a>
                 <div
                   style={{
                     border: '1px solid #E7E3F4',
@@ -850,15 +778,8 @@ export default function EventAdminPage() {
                     })()}
                 </div>
                 <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <a href={`/event-admin/${event.id}/push`} style={cardActionSolidStyle}>
-                    <PlaneIcon />
-                    {adminText(locale, 'navPush')}
-                  </a>
-                  <a href={`/event-admin/${event.id}/schedule`} style={cardActionOutlineStyle}>
-                    {adminText(locale, 'navSchedule')}
-                  </a>
-                  <a href={`/event-admin/${event.id}/coupons`} style={cardActionOutlineStyle}>
-                    {adminText(locale, 'navCoupons')}
+                  <a href={`/event-admin/${event.id}`} style={cardActionSolidStyle}>
+                    {adminText(locale, 'openDashboardButton')}
                   </a>
                   <button
                     type="button"
@@ -872,67 +793,7 @@ export default function EventAdminPage() {
                   >
                     {adminText(locale, 'editButton')}
                   </button>
-                  {event.couponCap < COUPON_OPTION_MAX_CAP && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void openHonkeLink({
-                          purpose: 'coupon-option',
-                          eventId: event.id,
-                          fallbackUrl: HONKE_COUPON_OPTION_URL,
-                        })
-                      }
-                      style={{
-                        ...cardActionOutlineStyle,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      {adminText(locale, 'couponPurchaseButton')}
-                    </button>
-                  )}
                 </div>
-                {(event.status === 'draft' || event.status === 'ended') && (
-                  <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {event.status === 'draft' && (
-                      <button
-                        onClick={() => void handlePublish(event)}
-                        disabled={cardBusy?.id === event.id}
-                        style={cardActionButtonStyle}
-                      >
-                        <span style={adminButtonContentStyle}>
-                          {cardBusy?.id === event.id && cardBusy.action === 'publish' && (
-                            <ButtonSpinner />
-                          )}
-                          {adminText(locale, 'publishButton')}
-                        </span>
-                      </button>
-                    )}
-                    <button
-                      onClick={() => void handleDelete(event)}
-                      disabled={cardBusy?.id === event.id}
-                      style={cardActionDangerStyle}
-                    >
-                      <span style={adminButtonContentStyle}>
-                        {cardBusy?.id === event.id && cardBusy.action === 'delete' && (
-                          <ButtonSpinner />
-                        )}
-                        {adminText(locale, 'deleteButton')}
-                      </span>
-                    </button>
-                  </div>
-                )}
-                {cardFeedback?.id === event.id && (
-                  <p
-                    style={{
-                      fontSize: 13,
-                      margin: '10px 0 0',
-                      color: cardFeedback.error ? '#b91c1c' : '#15803d',
-                    }}
-                  >
-                    {cardFeedback.text}
-                  </p>
-                )}
                 <div
                   style={{
                     marginTop: 16,
