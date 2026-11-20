@@ -11,7 +11,13 @@
 import { createHash } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db, messaging } from './firebase-admin';
-import { EVENT_SUBCOLLECTIONS, EventConfig, jstDateString, localeTopic } from './event';
+import {
+  EVENT_SUBCOLLECTIONS,
+  EventConfig,
+  jstDateString,
+  jstTimeString,
+  localeTopic,
+} from './event';
 import { isLocale, normalizeLocale, type Locale } from './i18n';
 import { getEvent } from './event-store';
 
@@ -142,6 +148,69 @@ export async function registerEventVisitor(
   }
 
   return { ok: true, memberId };
+}
+
+/**
+ * 現在のリセット範囲が始まった JST 日付（純粋関数）。
+ * 日次リセットは resetTime に「その日の分」として走るため、いまの時刻が
+ * resetTime より前なら、現在の範囲は昨日の resetTime から始まっている。
+ */
+export function registrationScopeStartDate(
+  event: Pick<EventConfig, 'resetTime'>,
+  now: Date,
+): string {
+  const today = jstDateString(now);
+  if (jstTimeString(now) >= event.resetTime) return today;
+  // JST に夏時間はないため、24時間前の JST 日付が「昨日」で正しい
+  return jstDateString(new Date(now.getTime() - 24 * 60 * 60 * 1000));
+}
+
+/**
+ * 購読者レコードが「現在のリセット範囲内」の登録かどうか（純粋関数）。
+ *
+ * 日次リセットは購読者を全消去するため（lib/event-reset.ts の resetTargets は
+ * どちらの方式でも subscribers を対象に含む）、通常はレコードの存在＝現行の
+ * 登録である。ただし、リセット時刻を過ぎてから tick が消去するまでの間は
+ * 前の範囲のレコードが残るため、その残存を registeredDate（登録時の JST
+ * 日付）で弾く。registeredDate を持たない旧レコードは、存在をもって
+ * 現行とみなす。
+ */
+export function isCurrentSubscriber(
+  data: Record<string, unknown> | undefined,
+  event: Pick<EventConfig, 'resetTime'>,
+  now: Date,
+): boolean {
+  if (!data) return false;
+  const registeredDate = data.registeredDate;
+  if (typeof registeredDate !== 'string') return true;
+  return registeredDate >= registrationScopeStartDate(event, now);
+}
+
+export type RegistrationStatusResult =
+  | { ok: true; registered: boolean }
+  | { ok: false; status: number; error: string };
+
+/**
+ * 来場者本人が現在のリセット範囲で登録済みかどうか。
+ * 来場者ページが、登録済みの端末に登録フローを出し直さないために使う。
+ */
+export async function getVisitorRegistrationStatus(
+  eventId: string,
+  memberId: string,
+  now: Date = new Date(),
+): Promise<RegistrationStatusResult> {
+  const event = await getEvent(eventId);
+  if (!event) {
+    return { ok: false, status: 404, error: 'イベントが見つかりません' };
+  }
+  const snap = await eventRef(eventId)
+    .collection(EVENT_SUBCOLLECTIONS.subscribers)
+    .doc(memberId)
+    .get();
+  return {
+    ok: true,
+    registered: snap.exists && isCurrentSubscriber(snap.data(), event, now),
+  };
 }
 
 export type UpdateLanguageResult =

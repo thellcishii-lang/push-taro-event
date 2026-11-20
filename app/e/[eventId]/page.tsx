@@ -296,6 +296,57 @@ export default function EventVisitorPage() {
     [],
   );
 
+  // 登録済みの端末で開き直したときは、登録フローを出し直さない。
+  // 電話認証のセッションが端末に残っていればサーバーに登録状態を確認し、
+  // 現在のリセット範囲で登録済みならそのまま利用画面（done）へ進める。
+  // あわせて、通知許可が既にある場合だけトークンを裏で付け直す
+  // （トークンが変わっていてもプッシュが届き続けるようにするため。
+  // ここでは requestPermission を呼ばず、許可ダイアログは絶対に出さない）。
+  const registrationStatusCheckedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user || !event || event.status !== 'live') return;
+    const key = `${eventId}:${user.uid}`;
+    if (registrationStatusCheckedRef.current === key) return;
+    registrationStatusCheckedRef.current = key;
+    let cancelled = false;
+    (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch(`/api/events/${eventId}/registration-status`, {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (!res.ok || cancelled) return;
+        const data = await res.json().catch(() => ({}));
+        if (cancelled || !data.registered) return;
+        setPhase((p) =>
+          p === 'phone' || p === 'code' || p === 'register' ? 'done' : p,
+        );
+        if (
+          typeof Notification !== 'undefined' &&
+          Notification.permission === 'granted'
+        ) {
+          const fcmToken = await requestFCMToken({ shopName: event.name });
+          if (fcmToken && !cancelled) {
+            const refreshToken = await user.getIdToken();
+            await fetch(`/api/events/${eventId}/register`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer ' + refreshToken,
+              },
+              body: JSON.stringify({ fcmToken, lang: locale }),
+            });
+          }
+        }
+      } catch {
+        // 状態が確認できなくても通常の登録フローは止めない
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, event, eventId, locale]);
+
   const handleLocaleChange = async (next: Locale) => {
     setLocale(next);
     try {
