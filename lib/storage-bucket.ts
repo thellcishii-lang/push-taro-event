@@ -7,9 +7,11 @@
 // このエラーで失敗したため、初期化時に必ずバケット名を渡す。
 // 値の出どころは apphosting.yaml の NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 // （クライアント設定と同じ公開識別子）。最終フォールバックはこの
-// プロジェクトの既定バケット。
+// プロジェクトの既定バケット（lib/variant-identity から導出）。
 
-export const DEFAULT_STORAGE_BUCKET = 'push-taro-event.firebasestorage.app';
+import { VARIANT_DEFAULT_STORAGE_BUCKET } from './variant-identity';
+
+export const DEFAULT_STORAGE_BUCKET = VARIANT_DEFAULT_STORAGE_BUCKET;
 
 export function resolveStorageBucket(
   env: Record<string, string | undefined>,
